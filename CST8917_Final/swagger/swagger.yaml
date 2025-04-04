@@ -92,20 +92,26 @@ paths:
             schema:
               type: object
               properties:
-                firstName:
+                username:
                   type: string
-                lastName:
+                name:
                   type: string
-                email:
+                surname:
                   type: string
-                password:
+                address:
                   type: string
                 phone:
                   type: string
-                  description: Optional phone number
+                email:
+                  type: string
+                emergency_contact:
+                  type: string
+                password:
+                  type: string
               required:
-                - firstName
-                - lastName
+                - username
+                - name
+                - surname
                 - email
                 - password
       responses:

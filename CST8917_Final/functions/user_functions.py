@@ -50,15 +50,29 @@ def create_user(req: func.HttpRequest, user_type: str = "user") -> func.HttpResp
     user_id = str(uuid.uuid4())
     
     # Extract required fields from the request body
-    first_name = req_body.get("firstName")
-    last_name = req_body.get("lastName")
-    email = req_body.get("email")
-    password = req_body.get("password")
+    username = req_body.get("username")
+    name = req_body.get("name")
+    surname = req_body.get("surname")
+    address = req_body.get("address")  # Optional address field
     phone = req_body.get("phone")  # Optional phone field
+    email = req_body.get("email")
+    emergency_contact = req_body.get("emergencyContact")  # Optional emergency contact field
+    password = req_body.get("password")
+    devices = req_body.get("Devices", [])  # Optional devices field
 
-    if not first_name or not last_name or not email or not password:
+    missing_fields = []
+    if not name:
+        missing_fields.append("name")
+    if not surname:
+        missing_fields.append("surame")
+    if not email:
+        missing_fields.append("email")
+    if not password:
+        missing_fields.append("password")
+    
+    if missing_fields:
         return func.HttpResponse(
-            json.dumps({"message": "Missing required fields"}), 
+            json.dumps({"message": f"Missing required fields: {', '.join(missing_fields)}"}), 
             status_code=400, 
             mimetype="application/json"
         )
@@ -70,13 +84,16 @@ def create_user(req: func.HttpRequest, user_type: str = "user") -> func.HttpResp
     user_doc = {
         "_id": user_id,            # ShardKey (userId) generated as a UUID
         "userId": user_id,
-        "firstName": first_name,
-        "lastName": last_name,
-        "email": email,
-        "password": hashed_pw,
+        "username": username,
+        "name": name,
+        "surname": surname,
+        "address": address,        # Optional address field
         "phone": phone,            # Optional phone field
+        "email": email,
+        "emergencyContact": emergency_contact,  # Optional emergency contact field
+        "password": hashed_pw,
         "authToken": None,         # Default authentication token is None
-        "Devices": [],             # Devices list (each device will have a telemetryData array)
+        "Devices": devices,             # Devices list (each device will have a telemetryData array)
         "type": user_type          # Adding userType (default: "user")
     }
     

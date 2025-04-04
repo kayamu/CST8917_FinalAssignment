@@ -25,10 +25,11 @@ def register_device(req: func.HttpRequest) -> func.HttpResponse:
         )
     
     # Validate required fields
-    device_id = req_body.get("deviceId")
+    device_id = str(req_body.get("deviceId"))
     device_name = req_body.get("deviceName")
     sensor_type = req_body.get("sensorType")
     location = req_body.get("location", {})
+    telemetry_data = req_body.get("telemetryData", [])
     if not device_id or not device_name or not sensor_type or not location.get("name"):
         return func.HttpResponse(
             json.dumps({"message": "Missing required fields"}), 
@@ -75,7 +76,7 @@ def register_device(req: func.HttpRequest) -> func.HttpResponse:
             "latitude": location.get("latitude", "")
         },
         "registrationDate": datetime.datetime.utcnow().isoformat(),  # Add registration date
-        "telemetryData": []  # Initialize with an empty telemetryData array
+        "telemetryData": telemetry_data
     }
 
     # Add the device to the user's Devices array

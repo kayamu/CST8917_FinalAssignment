@@ -32,7 +32,7 @@ def post_telemetry(req: func.HttpRequest) -> func.HttpResponse:
     
     # Parse the request body
     try:
-        device_id = req.form.get("deviceId")  # Get deviceId from form data
+        device_id = req.form.get("deviceId") # Get deviceId from form data
         values = req.form.get("values")  # Get values as a JSON string
         image = req.files.get("image")  # Get the uploaded image file
 
@@ -66,22 +66,9 @@ def post_telemetry(req: func.HttpRequest) -> func.HttpResponse:
     cosmos_service = CosmosDBService()
     logging.info(f"Searching for user with deviceId={device_id} in CosmosDB.")
 
-    try:
-        # deviceId'yi integer'a çevir
-        device_id = int(req.form.get("deviceId"))
-    except (TypeError, ValueError) as e:
-        logging.error(f"Invalid deviceId: {str(e)}")
-        return func.HttpResponse("Invalid deviceId", status_code=400)
-
 
     try:
-
-        user = cosmos_service.find_document({
-            "Devices.deviceId": device_id
-        })
-
-
-
+        user = cosmos_service.find_document({"Devices.deviceId": device_id})
     except Exception as e:
         logging.exception(f"Error while querying CosmosDB for deviceId={device_id}: {str(e)}")
 
@@ -107,7 +94,8 @@ def post_telemetry(req: func.HttpRequest) -> func.HttpResponse:
         logging.error(f"Device with deviceId={device_id} not found in user's Devices list.")
         return func.HttpResponse("Device not found in user's Devices list", status_code=404)
     
-    # If an image is provided, upload it to Azure Blob Storage
+    # If an image is provided, upload it to Azure Blob Storage and analyze it
+    fire_detection_result = "No image provided"
     if image:
         try:
             blob_service = BlobStorageService()
@@ -117,9 +105,14 @@ def post_telemetry(req: func.HttpRequest) -> func.HttpResponse:
             blob_path = f"{user['_id']}/{blob_filename}"  # Use user_id for the directory
             image_url = blob_service.upload_image(image.read(), blob_path)  # Read image bytes and upload
             telemetry_data["image"] = image_url  # Add the image URL to telemetry data
+
+            # Analyze the image for fire detection
+            from azure_services.cognitive_serivce import analyze_image_for_fire
+            fire_detection_result = analyze_image_for_fire(image_url)
+            telemetry_data["fire_detection_result"] = fire_detection_result  # Add the result to telemetry data
         except Exception as e:
-            logging.exception("Failed to upload image to Blob Storage.")
-            return func.HttpResponse(f"Failed to upload image: {str(e)}", status_code=500)
+            logging.exception("Failed to upload image to Blob Storage or analyze it.")
+            return func.HttpResponse(f"Failed to process image: {str(e)}", status_code=500)
     
     # Check conditions for telemetry values
     try:
@@ -155,7 +148,10 @@ def post_telemetry(req: func.HttpRequest) -> func.HttpResponse:
     
     logging.info(f"Telemetry data successfully added for deviceId={device_id}.")
     return func.HttpResponse(
-        json.dumps({"message": "Telemetry data added successfully"}), 
+        json.dumps({
+            "message": "Telemetry data added successfully",
+            "fire_detection_result": fire_detection_result  # Include fire detection result in the response
+        }), 
         status_code=201, 
         mimetype="application/json"
     )
@@ -173,8 +169,7 @@ def get_telemetry(req: func.HttpRequest) -> func.HttpResponse:
     event_id = req.params.get("eventId")
     sensor_type = req.params.get("sensorType")
     event_date = req.params.get("eventDate")
-    start_date = req.params.get("startDate")  # Start date for the date range
-    end_date = req.params.get("endDate")      # End date for the date range
+
 
     # Retrieve the user's devices
     cosmos_service = CosmosDBService()
@@ -212,14 +207,7 @@ def get_telemetry(req: func.HttpRequest) -> func.HttpResponse:
                 continue
         if event_date and telemetry.get("event_date") != event_date:
             continue
-        if start_date or end_date:
-            event_date = telemetry.get("event_date")
-            if event_date:
-                event_datetime = datetime.datetime.fromisoformat(event_date)
-                if start_date and event_datetime < datetime.datetime.fromisoformat(start_date):
-                    continue
-                if end_date and event_datetime > datetime.datetime.fromisoformat(end_date):
-                    continue
+
         
         filtered_data.append(telemetry)
 
