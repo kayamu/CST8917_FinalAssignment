@@ -1,0 +1,189 @@
+[
+    {
+      "valueType": "temperature",
+      "minValue": -40,
+      "maxValue": 85,
+      "unit": "°C"
+    },
+    {
+      "valueType": "humidity",
+      "minValue": 0,
+      "maxValue": 100,
+      "unit": "%RH"
+    },
+    {
+      "valueType": "light",
+      "minValue": 0,
+      "maxValue": 100000,
+      "unit": "lux"
+    },
+    {
+      "valueType": "uv",
+      "minValue": 0,
+      "maxValue": 15,
+      "unit": "UV Index"
+    },
+    {
+      "valueType": "air pressure",
+      "minValue": 300,
+      "maxValue": 1100,
+      "unit": "hPa"
+    },
+    {
+      "valueType": "wind speed",
+      "minValue": 0,
+      "maxValue": 75,
+      "unit": "m/s"
+    },
+    {
+      "valueType": "wind direction",
+      "minValue": 0,
+      "maxValue": 360,
+      "unit": "degrees"
+    },
+    {
+      "valueType": "rain gauge",
+      "minValue": 0,
+      "maxValue": 500,
+      "unit": "mm/hr"
+    },
+    {
+      "valueType": "soil moisture",
+      "minValue": 0,
+      "maxValue": 100,
+      "unit": "%"
+    },
+    {
+      "valueType": "soil temperature",
+      "minValue": -20,
+      "maxValue": 60,
+      "unit": "°C"
+    },
+    {
+      "valueType": "soil pH",
+      "minValue": 3,
+      "maxValue": 10,
+      "unit": "pH"
+    },
+    {
+      "valueType": "co2",
+      "minValue": 400,
+      "maxValue": 5000,
+      "unit": "ppm"
+    },
+    {
+      "valueType": "no2",
+      "minValue": 0,
+      "maxValue": 10,
+      "unit": "ppm"
+    },
+    {
+      "valueType": "o3",
+      "minValue": 0,
+      "maxValue": 1,
+      "unit": "ppm"
+    },
+    {
+      "valueType": "pm2.5",
+      "minValue": 0,
+      "maxValue": 500,
+      "unit": "µg/m³"
+    },
+    {
+      "valueType": "pm10",
+      "minValue": 0,
+      "maxValue": 1000,
+      "unit": "µg/m³"
+    },
+    {
+      "valueType": "sound level",
+      "minValue": 30,
+      "maxValue": 120,
+      "unit": "dB"
+    },
+    {
+      "valueType": "flood water level",
+      "minValue": 0,
+      "maxValue": 5,
+      "unit": "meters"
+    },
+    {
+      "valueType": "solar radiation",
+      "minValue": 0,
+      "maxValue": 1200,
+      "unit": "W/m²"
+    },
+    {
+      "valueType": "motion",
+      "minValue": 0,
+      "maxValue": 1,
+      "unit": "Boolean"
+    },
+    {
+      "valueType": "vibration",
+      "minValue": 0,
+      "maxValue": 16,
+      "unit": "g"
+    },
+    {
+      "valueType": "gps module",
+      "minValue": -90,
+      "maxValue": 90,
+      "unit": "Latitude / Longitude"
+    },
+    {
+      "valueType": "air quality index",
+      "minValue": 0,
+      "maxValue": 500,
+      "unit": "AQI"
+    },
+    {
+      "valueType": "ammonia",
+      "minValue": 0,
+      "maxValue": 100,
+      "unit": "ppm"
+    },
+    {
+      "valueType": "methane",
+      "minValue": 0,
+      "maxValue": 10000,
+      "unit": "ppm"
+    },
+    {
+      "valueType": "hydrogen sulfide",
+      "minValue": 0,
+      "maxValue": 100,
+      "unit": "ppm"
+    },
+    {
+      "valueType": "leaf wetness",
+      "minValue": 0,
+      "maxValue": 100,
+      "unit": "%"
+    },
+    {
+      "valueType": "lightning detector",
+      "minValue": 0,
+      "maxValue": 40,
+      "unit": "km"
+    },
+    {
+      "valueType": "visibility",
+      "minValue": 0,
+      "maxValue": 10000,
+      "unit": "meters"
+    },
+    {
+      "valueType": "tide level",
+      "minValue": -2,
+      "maxValue": 10,
+      "unit": "meters"
+    },
+    {
+      "valueType": "radiation",
+      "minValue": 0.05,
+      "maxValue": 10,
+      "unit": "µSv/h"
+    }
+  ]
+  

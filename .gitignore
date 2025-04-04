@@ -1,0 +1,5 @@
+local.settings.json
+azure_config.py
+.python_packages
+__pycache__
+karate-tests/target
