@@ -7,7 +7,7 @@ from azure_services.cosmosdb_service import CosmosDBService
 from azure_services.iot_hub_service import IoTHubService
 from azure_services.blob_storage_service import BlobStorageService
 from azure_services.notification_service import NotificationService
-#from azure_services.communication_service import CommunicationService
+from azure_services.communication_service import CommunicationService
 from config.jwt_utils import decode_token, authenticate_user, get_azure_config
 import base64  # Base64 encoding için gerekli
 
@@ -35,6 +35,7 @@ def post_telemetry(req: func.HttpRequest) -> func.HttpResponse:
     try:
         device_id = req.form.get("deviceId")  # Get deviceId from form data
         values = req.form.get("values")  # Get values as a JSON string
+        event_date = datetime.datetime.now(datetime.timezone.utc).isoformat()  # Fixed: Removed trailing comma
         image = req.files.get("image")  # Get the uploaded image file
 
         # Parse values from JSON string to Python object
@@ -59,7 +60,7 @@ def post_telemetry(req: func.HttpRequest) -> func.HttpResponse:
     telemetry_data = {
         "deviceId": device_id,
         "eventId": str(uuid.uuid4()),  # Generate a unique event ID
-        "event_date": datetime.datetime.now(datetime.timezone.utc).isoformat(),  # Current system date in ISO format with timezone
+        "event_date": event_date,  # Correctly formatted event_date
         "values": values,  # List of key-value pairs
     }
 
@@ -67,44 +68,23 @@ def post_telemetry(req: func.HttpRequest) -> func.HttpResponse:
     cosmos_service = CosmosDBService()
     logging.info(f"Searching for user with deviceId={device_id} in CosmosDB.")
 
-
-
     fire_detection_result = "No image provided"
     if image:
         try:
             user = cosmos_service.find_document({"Devices.deviceId": device_id})
         except Exception as e:
             logging.exception(f"Error while querying CosmosDB for deviceId={device_id}: {str(e)}")
-
             return func.HttpResponse(
                 json.dumps({"message": "Error while querying database"}), 
                 status_code=500, 
                 mimetype="application/json"
-        )
+            )
 
         try:
-            blob_service = BlobStorageService()
-            file_extension = image.filename.split(".")[-1]  # Extract file extension
-            event_date = telemetry_data["event_date"]  # Use event_date for the filename
-            blob_filename = f"{event_date.replace(':', '').replace('-', '').replace('.', '')}_{device_id}.{file_extension}"
-            blob_path = f"{user['_id']}/{blob_filename}"  # Use user_id for the directory
-            image_url = blob_service.upload_image(image.read(), blob_path)  # Read image bytes and upload
-            telemetry_data["image"] = image_url  # Add the image URL to telemetry data
-
-            # Analyze the image for fire detection
-            from azure_services.cognitive_serivce import analyze_image_for_fire
-            fire_detection_result = analyze_image_for_fire(image_url)
-            telemetry_data["fire_detection_result"] = fire_detection_result 
-
-            logging.info(f"**************************ALERT*********************************")
-            logging.warning(f"Fire detection result: {fire_detection_result}")
-            logging.info(f"****************************************************************")
-
-
+            image_url, fire_detection_result = handle_fire_detection_and_notification(image, device_id, user, telemetry_data)
         except Exception as e:
             logging.exception("Failed to upload image to Blob Storage or analyze it.")
             return func.HttpResponse(f"Failed to process image: {str(e)}", status_code=500)
-
 
     # Send telemetry data to Service Bus Queue
     try:
@@ -123,6 +103,106 @@ def post_telemetry(req: func.HttpRequest) -> func.HttpResponse:
         status_code=202,  # 202 Accepted, because the data is queued for processing
         mimetype="application/json"
     )
+
+def handle_fire_detection_and_notification(image, device_id, user, telemetry_data):
+    """
+    Handles fire detection from the uploaded image and sends an email notification if fire is detected.
+
+    Args:
+        image: The uploaded image file.
+        device_id: The ID of the device that uploaded the image.
+        user: The user document from the database.
+        telemetry_data: The telemetry data dictionary to update.
+
+    Returns:
+        A tuple containing the image URL with SAS token and the fire detection result.
+    """
+    try:
+        # Process the image
+        image_url_with_sas, fire_detection_result = process_image(image, device_id, user["_id"], telemetry_data)
+
+        # Check if fire is detected
+        if "Fire detected" in fire_detection_result:
+            try:
+                communication_service = CommunicationService()
+                user_email = user.get("email")
+                if user_email:
+                    subject = "Fire Alert Detected!"
+                    plain_text_body = (
+                        f"A fire has been detected in the image uploaded from device {device_id}.\n\n"
+                        f"Details:\n- Event Date: {telemetry_data['event_date']}\n"
+                        f"- Fire Detection Result: {fire_detection_result}\n"
+                        f"- Image URL: {image_url_with_sas}"
+                    )
+                    html_body = f"""
+                    <html>
+                        <body>
+                            <h2>Fire Alert Detected!</h2>
+                            <p>A fire has been detected in the image uploaded from device <strong>{device_id}</strong>.</p>
+                            <p><strong>Details:</strong></p>
+                            <ul>
+                                <li><strong>Event Date:</strong> {telemetry_data['event_date']}</li>
+                                <li><strong>Fire Detection Result:</strong> {fire_detection_result}</li>
+                                <li><strong>Image URL:</strong> <a href="{image_url_with_sas}">{image_url_with_sas}</a></li>
+                            </ul>
+                        </body>
+                    </html>
+                    """
+
+                    # Send the email
+                    communication_service.send_email(
+                        recipient_email=user_email,
+                        subject=subject,
+                        body=plain_text_body,
+                        html_body=html_body
+                    )
+                    logging.info(f"Fire alert email sent to {user_email}.")
+            except Exception as e:
+                logging.exception("Failed to send fire alert email.")
+        return image_url_with_sas, fire_detection_result
+    except Exception as e:
+        logging.exception("Failed to process image or send notification.")
+        raise
+
+
+def process_image(image, device_id, user_id, telemetry_data):
+    """
+    Processes the uploaded image: uploads it to Blob Storage, generates a SAS token,
+    analyzes it for fire detection, and updates the telemetry data with the results.
+
+    Args:
+        image: The uploaded image file.
+        device_id: The ID of the device that uploaded the image.
+        user_id: The ID of the user associated with the device.
+        telemetry_data: The telemetry data dictionary to update.
+
+    Returns:
+        A tuple containing the image URL with SAS token and the fire detection result.
+    """
+    try:
+        # Upload the image to Blob Storage
+        blob_service = BlobStorageService()
+        file_extension = image.filename.split(".")[-1]
+        event_date = telemetry_data["event_date"]
+        blob_filename = f"{event_date.replace(':', '').replace('-', '').replace('.', '')}_{device_id}.{file_extension}"
+        blob_path = f"{user_id}/{blob_filename}"
+        blob_service.upload_image(image.read(), blob_path)
+
+        # Generate a SAS token for the image
+        image_url_with_sas = blob_service.generate_sas_url(blob_path)
+        telemetry_data["image"] = image_url_with_sas
+
+        # Analyze the image for fire detection
+        from azure_services.cognitive_serivce import analyze_image_for_fire
+        fire_detection_result = analyze_image_for_fire(image_url_with_sas)
+        telemetry_data["fire_detection_result"] = fire_detection_result
+
+        logging.info(f"Image processed successfully. Fire detection result: {fire_detection_result}")
+        return image_url_with_sas, fire_detection_result
+    except Exception as e:
+        logging.exception("Failed to process the image.")
+        raise
+
 
 def get_telemetry(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Processing get_telemetry request.")
