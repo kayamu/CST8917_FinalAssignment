@@ -10,7 +10,7 @@ Feature: Creating new user and get token
     * def surname = randomString(10)
     * def address = randomString(20)
     * def phone = '123' + randomString(7)
-    * def email = userName + '@example.com'
+    * def email = username + '@example.com'
     * karate.set('email', email)
     * def password = randomString(12)
     * karate.set('password', password)
@@ -18,16 +18,7 @@ Feature: Creating new user and get token
 
     Scenario: Create a new user and capture token
         Given path 'user'
-        And request {
-            "username": "#(username)",            
-            "name": "#(name)",
-            "surname": "#(surname)",
-            "email": "#(email)",
-            "password": "#(password)",
-            "phone": "#(phone)",
-            "address": "#(address)",
-            "emergencyContact": "#(emergency_contact)"
-        }
+        And request {"username": "#(username)", "name": "#(name)", "surname": "#(surname)", "email": "#(email)", "password": "#(password)", "phone": "#(phone)", "address": "#(address)", "emergencyContact": "#(emergency_contact)"}
         When method post
         Then status 201
         And match response.message == 'User created successfully'
