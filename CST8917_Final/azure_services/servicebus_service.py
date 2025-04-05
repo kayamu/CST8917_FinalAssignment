@@ -1,8 +1,11 @@
 import logging
 import json
+import os  # Dosya uzantısını almak için gerekli
 from azure.servicebus import ServiceBusClient, ServiceBusMessage
 from config.azure_config import get_azure_config
 from azure_services.cosmosdb_service import CosmosDBService
+from azure_services.blob_storage_service import BlobStorageService
+from azure_services.iot_hub_service import IoTHubService
 
 class ServiceBusService:
     def __init__(self):
@@ -57,27 +60,5 @@ class ServiceBusService:
             logging.exception(f"Failed to receive messages from queue '{queue_name}': {str(e)}")
             raise
 
-    def process_telemetry_message(self, message: ServiceBusMessage):
-        """
-        Process a telemetry message from the Service Bus Queue and write it to the database.
-        """
-        try:
-            telemetry_data = json.loads(message.body)
-            device_id = telemetry_data.get("deviceId")
-            if not device_id:
-                logging.error("Invalid telemetry data: Missing deviceId.")
-                return
 
-            # Write telemetry data to the database
-            cosmos_service = CosmosDBService()
-            result = cosmos_service.update_document(
-                {"Devices.deviceId": device_id},
-                {"$push": {"Devices.$.telemetryData": telemetry_data}}
-            )
-            if result.modified_count == 0:
-                logging.error(f"Failed to update telemetry data for deviceId={device_id}.")
-            else:
-                logging.info(f"Telemetry data successfully written for deviceId={device_id}.")
-        except Exception as e:
-            logging.exception(f"Failed to process telemetry message: {str(e)}")
-
+ 

@@ -1,6 +1,6 @@
 function fn() {
   var config = {
-    baseUrl: 'https://cst8922finalfunctionapp.azurewebsites.net/api',
+    baseUrl: 'https://super-duper-capybara-977jw9q7q79h76wr-7071.app.github.dev/api',
     email: 'mucteb@gmail.com',
     password: '12345'
   };

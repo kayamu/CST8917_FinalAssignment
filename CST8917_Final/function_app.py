@@ -3,6 +3,10 @@ import logging
 import azure.functions as func
 from functions import user_functions, device_functions, telemetry_functions, conditions
 from scheduled.trigger_functions import scheduled_cleanup
+from azure.servicebus import ServiceBusMessage
+from azure_services.servicebus_listener import ServiceBusListener
+from config.azure_config import get_azure_config
+
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
@@ -89,3 +93,25 @@ def ScheduledCleanup(mytimer: func.TimerRequest):
     """
     logging.info("Scheduled cleanup function triggered.")
     scheduled_cleanup(mytimer)
+
+@app.function_name(name="ServiceBusListenerFunction")
+@app.service_bus_queue_trigger(
+    arg_name="msg",
+    queue_name="cst8922servicebusqueue",  # Kuyruk adı azure_config.py'den alınır
+    connection="SERVICE_BUS_CONNECTION_STRING"  # Bağlantı dizesi azure_config.py'den alınır
+)
+def ServiceBusListenerFunction(msg: str):
+    """
+    Azure Function triggered by a Service Bus Queue message.
+    """
+    logging.info("Service Bus Listener Function triggered.")
+    try:
+        # Decode the message body
+        message_body = msg  # msg is already a string
+        logging.info(f"Message received: {message_body}")
+
+        # Pass the message to the ServiceBusListener for processing
+        listener = ServiceBusListener()
+        listener.main(message_body)
+    except Exception as e:
+        logging.exception(f"Failed to process Service Bus message: {str(e)}")

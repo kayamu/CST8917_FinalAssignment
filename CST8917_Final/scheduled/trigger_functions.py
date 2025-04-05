@@ -37,10 +37,8 @@ def scheduled_cleanup(timer_info):
                     # Delete original and resized images from blob storage
                     try:
                         blob_name_original = f"{user['_id']}/{image['imageName']}"
-                        blob_name_resized = f"{user['_id']}/{image['imageName'].split('.')[0]}_resized.{image['imageName'].split('.')[-1]}"
                         container_client.delete_blob(blob_name_original)
-                        container_client.delete_blob(blob_name_resized)
-                        logging.info(f"Deleted blobs: {blob_name_original}, {blob_name_resized}")
+                        logging.info(f"Deleted blobs: {blob_name_original}")
                     except Exception as e:
                         logging.error(f"Failed to delete blob(s): {str(e)}")
                 else:
