@@ -83,7 +83,7 @@ class ServiceBusListener:
         except Exception as e:
             logging.exception(f"Failed to process telemetry message: {str(e)}")
 
-    def check_conditions(self, device_id: str, values: list):  # 'self' parametresi eklendi
+    def check_conditions(self, device_id: str, values: list):
         """
         Check conditions for telemetry values and log warnings if thresholds are exceeded.
         """
@@ -113,8 +113,9 @@ class ServiceBusListener:
             logging.info(f"Checking conditions for valueType={value_type}, value={value_data}.")
 
             try:
+                # Query conditions for the given valueType
                 conditions = cosmos_service.find_documents(
-                    {"valueType": value_type, "$or": [{"deviceId": device_id}, {"deviceId": None}]}, collection_name
+                    {"valueType": value_type}, collection_name
                 )
                 logging.debug(f"Found {len(conditions)} conditions for valueType={value_type}.")
             except Exception as e:
@@ -127,25 +128,61 @@ class ServiceBusListener:
 
             for condition in conditions:
                 logging.debug(f"Evaluating condition: {condition}")
+                scope = condition.get("scope", "general")
+                condition_user_id = condition.get("userId")
+                condition_device_id = condition.get("deviceId")
+
+                user = cosmos_service.find_document({"Devices.deviceId": device_id})
+                # Apply scope logic
+                if scope == "user":
+                    if not user or user.get("userId") != condition_user_id:
+                        logging.debug(f"Condition skipped: Scope is 'user' but userId does not match.")
+                        continue
+
+                elif scope == "device":
+                    # Ensure the condition's deviceId matches the telemetry data's deviceId
+                    if condition_device_id != device_id:
+                        logging.debug(f"Condition skipped: Scope is 'device' but deviceId does not match.")
+                        continue
+
+                # Compare the value with the condition's min and max values
                 min_value = condition.get("minValue")
                 max_value = condition.get("maxValue")
 
-                # Compare the value with the condition's min and max values
-                if min_value is not None:
-                    logging.debug(f"Checking if value {value_data} < minValue {min_value}.")
-                    if value_data < min_value:
-                        logging.warning(
-                            f"Value {value_data} for {value_type} is below the minimum threshold ({min_value})."
-                        )
+                if min_value is not None and value_data < min_value:
+                    message = f"Value {value_data} for {value_type} is below the minimum threshold ({min_value})."
+                    logging.warning(message)
+                    self.notify_user(condition.get("notificationMethods", ["Log"]), message, user)
 
-                if max_value is not None:
-                    logging.debug(f"Checking if value {value_data} > maxValue {max_value}.")
-                    if value_data > max_value:
-                        logging.warning(
-                            f"Value {value_data} for {value_type} is above the maximum threshold ({max_value})."
-                        )
+                if max_value is not None and value_data > max_value:
+                    message = f"Value {value_data} for {value_type} is above the maximum threshold ({max_value})."
+                    logging.warning(message)
+                    self.notify_user(condition.get("notificationMethods", ["Log"]), message, user)
 
         logging.info(f"Condition check completed for deviceId={device_id}.")
 
-
+    def notify_user(self, methods: list, message: str, user: dict = None):
+        """
+        Notify the user based on the specified methods.
+        """
+        for method in methods:
+            if method == "Notification":
+                logging.info(f"Sending notification: {message}")
+                # Add logic to send a notification
+            elif method == "Email":
+                if user and "email" in user:
+                    logging.info(f"Sending email to {user['email']}: {message}")
+                    # Add logic to send an email
+                else:
+                    logging.error("User email not found. Cannot send email notification.")
+            elif method == "SMS":
+                if user and "phoneNumber" in user:
+                    logging.info(f"Sending SMS to {user['phoneNumber']}: {message}")
+                    # Add logic to send an SMS
+                else:
+                    logging.error("User phone number not found. Cannot send SMS notification.")
+            elif method == "Log":
+                logging.warning(message)
+            else:
+                logging.error(f"Unknown notification method: {method}")
 

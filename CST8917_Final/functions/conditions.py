@@ -152,16 +152,28 @@ def post_condition(req_body, user_id):
                 errors.append({"error": f"Device with deviceId {device_id} not found for the user", "condition": condition_data})
                 continue
 
+        scope = condition_data.get("conditionType", "general")
+
+        new_user_id = "" 
+        new_device_id = ""    
+
+        if scope == "user":
+            new_user_id = user_id
+        elif scope == "device":
+            new_device_id = device_id
+
         # Create the condition
         condition = {
             "type": "condition",
-            "userId": user_id,  # Automatically add userId from the authenticated user
-            "deviceId": device_id,  # Include deviceId if provided
+            "userId": new_user_id,  # Automatically add userId from the authenticated user
+            "deviceId": new_device_id,  # Include deviceId if provided
             "valueType": condition_data.get("valueType"),
             "minValue": condition_data.get("minValue"),
             "maxValue": condition_data.get("maxValue"),
             "exactValue": condition_data.get("exactValue"),
             "unit": condition_data.get("unit"),  # Add the Unit field
+            "scope": condition_data.get("conditionType", "general"), 
+            "notificationMethods": condition_data.get("notificationMethods", ["Log"])  # Default to ["Log"]
         }
 
         try:
@@ -197,12 +209,21 @@ def put_condition(req_body, user_id):
 
     # Build the query to find the condition
     try:
-        query = {"_id": ObjectId(condition_id), "type": "condition", "userId": user_id}
+        query = {
+            "_id": ObjectId(condition_id),
+            "type": "condition"
+        }
+        condition = cosmos_service.find_document(query, collection_name)
+        if not condition:
+            logging.error(f"Condition with ID {condition_id} does not exist.")
+            return {"error": "Condition not found"}, 404
+
+
     except Exception as e:
         logging.error(f"Invalid conditionId format: {str(e)}")
         return {"error": "Invalid conditionId format"}, 400
 
-    logging.info(f"Query to find the condition: {query}")
+    logging.info(f"Condition found: {condition}")
 
     # Prepare the fields to update
     update_fields = {key: value for key, value in req_body.items() if key not in ["conditionId", "type"]}
@@ -220,8 +241,8 @@ def put_condition(req_body, user_id):
             logging.info(f"Condition with conditionId={condition_id} updated successfully.")
             return {"message": "Condition updated successfully"}, 200
         else:
-            logging.warning(f"No condition found with conditionId={condition_id} or no changes made.")
-            return {"message": "Condition not found or no changes made"}, 404
+            logging.warning(f"No changes made to condition with conditionId={condition_id}.")
+            return {"message": "No changes made - values might be identical to existing ones"}, 200
     except Exception as e:
         logging.error(f"Error while updating condition: {str(e)}")
         return {"error": "Failed to update condition"}, 500

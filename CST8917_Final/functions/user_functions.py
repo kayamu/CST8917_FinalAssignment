@@ -61,10 +61,12 @@ def create_user(req: func.HttpRequest, user_type: str = "user") -> func.HttpResp
     devices = req_body.get("Devices", [])  # Optional devices field
 
     missing_fields = []
+    if not username:
+        missing_fields.append("username")
     if not name:
         missing_fields.append("name")
     if not surname:
-        missing_fields.append("surame")
+        missing_fields.append("surname")
     if not email:
         missing_fields.append("email")
     if not password:
@@ -74,6 +76,17 @@ def create_user(req: func.HttpRequest, user_type: str = "user") -> func.HttpResp
         return func.HttpResponse(
             json.dumps({"message": f"Missing required fields: {', '.join(missing_fields)}"}), 
             status_code=400, 
+            mimetype="application/json"
+        )
+    
+    # Check for unique username and email
+    cosmos_service = CosmosDBService()
+    existing_user = cosmos_service.find_document({"$or": [{"username": username}, {"email": email}]})
+    if existing_user:
+        conflict_field = "username" if existing_user.get("username") == username else "email"
+        return func.HttpResponse(
+            json.dumps({"message": f"{conflict_field.capitalize()} already exists"}), 
+            status_code=409, 
             mimetype="application/json"
         )
     
@@ -93,11 +106,10 @@ def create_user(req: func.HttpRequest, user_type: str = "user") -> func.HttpResp
         "emergencyContact": emergency_contact,  # Optional emergency contact field
         "password": hashed_pw,
         "authToken": None,         # Default authentication token is None
-        "Devices": devices,             # Devices list (each device will have a telemetryData array)
+        "Devices": devices,        # Devices list (each device will have a telemetryData array)
         "type": user_type          # Adding userType (default: "user")
     }
     
-    cosmos_service = CosmosDBService()
     # Insert the user document into Cosmos DB
     insert_result = cosmos_service.insert_document(user_doc)
     
@@ -324,12 +336,14 @@ def login_user(req: func.HttpRequest) -> func.HttpResponse:
     cosmos_service = CosmosDBService()
     user = cosmos_service.find_document({"email": email})
     if not user:
-        return func.HttpResponse(
-            json.dumps({"message": "User not found"}), 
-            status_code=404, 
-            mimetype="application/json"
-        )
-    
+        # If not found by email, search by username
+        user = cosmos_service.find_document({"username": email})
+        if not user:
+            return func.HttpResponse(
+                json.dumps({"message": "User not found"}), 
+                status_code=404, 
+                mimetype="application/json"
+            )
     # Verify the password
     stored_password = user.get("password")
     if not verify_password(password, stored_password):

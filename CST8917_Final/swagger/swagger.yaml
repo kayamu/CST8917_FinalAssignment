@@ -8,8 +8,8 @@ servers:
 
   - url: https://cst8922finalfunctionapp.azurewebsites.net/api
     description: Azure Function 8922App
-  - url: https://cst8917finalfuncapp.azurewebsites.net/api
-    description: Azure Function 8917App
+  - url: https://cst8922finaltest.azurewebsites.net/api
+    description: Azure Function 8922App test  
   - url: https://super-duper-capybara-977jw9q7q79h76wr-7071.app.github.dev/api
     description: GitHub Codespaces Local Environment
 
@@ -941,6 +941,22 @@ paths:
                       type: number
                     unit:
                       type: string
+                    scope:
+                      type: string
+                      enum:
+                        - general
+                        - user
+                        - device
+                    notificationMethods:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                          - Log
+                          - Notification
+                          - Email
+                          - SMS
+
         '401':
           description: Unauthorized (JWT token missing or invalid)
 
@@ -978,6 +994,24 @@ paths:
                     unit:
                       type: string
                       description: Unit of the value (e.g., Celsius, Lux) (optional)
+                    scope:
+                      type: string
+                      enum:
+                        - general
+                        - user
+                        - device
+                      description: Scope of the condition (either `general` or `user` or `device`)
+                    notificationMethods:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                          - Log
+                          - Notification
+                          - Email
+                          - SMS
+
+                      description: List of notification methods to use when the condition is met
                   required:
                     - valueType
                 - type: array
@@ -1002,6 +1036,23 @@ paths:
                       unit:
                         type: string
                         description: Unit of the value (e.g., Celsius, Lux) (optional)
+                      scope:
+                        type: string
+                        enum:
+                          - general
+                          - user
+                          - device
+                        description: Scope of the condition (either `general` or `user` or `device`)
+                      notificationMethods:
+                        type: array
+                        items:
+                          type: string
+                          enum:
+                              - Log
+                              - Notification
+                              - Email
+                              - SMS
+                        description: List of notification methods to use when the condition is met
                     required:
                       - valueType
       responses:
@@ -1033,6 +1084,21 @@ paths:
                           type: number
                         unit:
                           type: string
+                        scope:
+                          type: string
+                          enum:
+                            - general
+                            - user
+                            - device
+                        notificationMethods:
+                          type: array
+                          items:
+                            type: string
+                            enum:
+                              - Log
+                              - Notification
+                              - Email
+                              - SMS
                   errors:
                     type: array
                     items:
@@ -1269,6 +1335,44 @@ components:
         image:
           type: string
           description: URL of the associated image (if any)
+
+    Condition:
+      type: object
+      properties:
+        conditionId:
+          type: string
+        userId:
+          type: string
+        deviceId:
+          type: string
+        valueType:
+          type: string
+        minValue:
+          type: number
+        maxValue:
+          type: number
+        exactValue:
+          type: number
+        unit:
+          type: string
+        scope:
+          type: string
+          enum:
+            - general
+            - user
+            - device
+          description: Scope of the condition (either `general` or `user` or `device`)
+        notificationMethods:
+          type: array
+          items:
+            type: string
+            enum:
+              - Log
+              - Notification
+              - Email
+              - SMS
+
+          description: List of notification methods to use when the condition is met
 
   SasAccessInfo:
     type: object
