@@ -1,7 +1,7 @@
 import os
 import logging
 import azure.functions as func
-from functions import user_functions, device_functions, telemetry_functions, conditions
+from functions import user_functions, device_functions, telemetry_functions, conditions, alertlogs
 from scheduled.trigger_functions import scheduled_cleanup
 from azure.servicebus import ServiceBusMessage
 from azure_services.servicebus_listener import ServiceBusListener
@@ -83,6 +83,15 @@ def GetUsers(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="conditions", methods=["POST", "GET", "PUT", "DELETE"])
 def ConditionsManagement(req: func.HttpRequest) -> func.HttpResponse:
     return conditions.main(req)
+
+@app.function_name(name="AlertLogsFunctions")
+@app.route(route="alertlogs", methods=["GET", "DELETE"])
+def AlertLogsManagement(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Dispatch the request to the main function in alertlogs.py.
+    """
+    from functions.alertlogs import main
+    return main(req)
 
 @app.function_name(name="ScheduledCleanup")
 @app.schedule(schedule="0 0 0 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)

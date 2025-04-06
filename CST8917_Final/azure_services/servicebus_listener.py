@@ -7,6 +7,9 @@ from azure_services.cosmosdb_service import CosmosDBService
 from azure_services.blob_storage_service import BlobStorageService
 from azure_services.iot_hub_service import IoTHubService
 from config.azure_config import get_azure_config
+from azure_services.notification_service import NotificationService
+from azure_services.communication_service import CommunicationService
+from datetime import datetime, timezone  # Import timezone explicitly
 
 class ServiceBusListener:
     def main(self, msg: str):
@@ -94,6 +97,7 @@ class ServiceBusListener:
 
         logging.debug(f"Using collection: {collection_name}")
 
+
         for value in values:
             logging.debug(f"Processing value: {value}")
             value_type = value.get("valueType")
@@ -127,7 +131,7 @@ class ServiceBusListener:
                 continue
 
             for condition in conditions:
-                logging.debug(f"Evaluating condition: {condition}")
+                logging.info(f"Evaluating condition: {condition}")
                 scope = condition.get("scope", "general")
                 condition_user_id = condition.get("userId")
                 condition_device_id = condition.get("deviceId")
@@ -152,37 +156,70 @@ class ServiceBusListener:
                 if min_value is not None and value_data < min_value:
                     message = f"Value {value_data} for {value_type} is below the minimum threshold ({min_value})."
                     logging.warning(message)
-                    self.notify_user(condition.get("notificationMethods", ["Log"]), message, user)
+                    self.notify_user(condition, message, user, device_id, values)
 
                 if max_value is not None and value_data > max_value:
                     message = f"Value {value_data} for {value_type} is above the maximum threshold ({max_value})."
                     logging.warning(message)
-                    self.notify_user(condition.get("notificationMethods", ["Log"]), message, user)
+                    self.notify_user(condition, message, user, device_id, values)
 
         logging.info(f"Condition check completed for deviceId={device_id}.")
 
-    def notify_user(self, methods: list, message: str, user: dict = None):
+    def notify_user(self, condition: dict, message: str, user: dict = None, device_id: str = None, values: list = None):
         """
         Notify the user based on the specified methods.
         """
+        methods = condition.get("notificationMethods", ["Log"])
+        notification_service = NotificationService()
+        communication_service = CommunicationService()
+        cosmos_service = CosmosDBService()
+        config = get_azure_config()
+        alert_collection_name = config["ALERT_COLLECTION_NAME"]  # Get the alert collection name from config
+
         for method in methods:
             if method == "Notification":
                 logging.info(f"Sending notification: {message}")
-                # Add logic to send a notification
+                notification_service.send_notification(message, device_id, values)
+
             elif method == "Email":
                 if user and "email" in user:
                     logging.info(f"Sending email to {user['email']}: {message}")
-                    # Add logic to send an email
+                    communication_service.send_email(
+                        recipient_email=user["email"],
+                        subject="Alert Notification",
+                        body=message
+                    )
                 else:
                     logging.error("User email not found. Cannot send email notification.")
+
             elif method == "SMS":
                 if user and "phoneNumber" in user:
                     logging.info(f"Sending SMS to {user['phoneNumber']}: {message}")
-                    # Add logic to send an SMS
                 else:
                     logging.error("User phone number not found. Cannot send SMS notification.")
+
+
             elif method == "Log":
-                logging.warning(message)
+                logging.info(f"Logging alert to collection: {alert_collection_name}")
+                try:
+                    # Create the alert document
+
+
+                    alert_document = {
+                        "deviceId": device_id,
+                        "message": message,
+                        "condition": condition,
+                        "user_id": user.get("userId") if user else None,
+                        "telemetry_data": values,
+                        "timestamp": datetime.now(timezone.utc).isoformat()  # Use timezone.utc
+                    }
+
+                    # Insert the alert into the specified collection
+                    cosmos_service.insert_document(alert_document, alert_collection_name)
+                    logging.info(f"Alert successfully logged to collection: {alert_collection_name}")
+                except Exception as e:
+                    logging.error(f"Failed to log alert to collection: {alert_collection_name}. Error: {str(e)}")
+
             else:
                 logging.error(f"Unknown notification method: {method}")
 

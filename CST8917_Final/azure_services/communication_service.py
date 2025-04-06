@@ -1,5 +1,4 @@
 import logging
-import base64
 from azure.communication.email import EmailClient
 from config.azure_config import get_azure_config
 
@@ -27,7 +26,7 @@ class CommunicationService:
                     "plainText": body,
                 },
                 "recipients": {
-                    "to": [{"address": recipient_email}],  # Corrected key to "address"
+                    "to": [{"address": recipient_email}],
                 },
                 "senderAddress": self.sender_email,
             }
@@ -44,45 +43,6 @@ class CommunicationService:
                 logging.info(f"Email sent successfully. Message ID: {result.message_id}")
             else:
                 logging.info(f"Email sent successfully. Raw result: {result}")
-
-            return result
-        except Exception as e:
-            logging.exception(f"Failed to send email to {recipient_email}: {str(e)}")
-            raise
-
-    def send_email_with_attachment(self, recipient_email: str, subject: str, plain_text_body: str, html_body: str = None, attachment: dict = None):
-        """
-        Sends an email with an optional attachment using Azure Communication Services.
-        """
-        try:
-            # Build the email message
-            message = {
-                "senderAddress": self.sender_email,
-                "recipients": {
-                    "to": [{"address": recipient_email}]
-                },
-                "content": {
-                    "subject": subject,
-                    "plainText": plain_text_body,
-                },
-            }
-
-            # Add HTML content if provided
-            if html_body:
-                message["content"]["html"] = html_body
-
-            # Add attachment if provided
-            if attachment:
-                message["attachments"] = [attachment]
-
-            # Send the email
-            poller = self.email_client.begin_send(message)
-            result = poller.result()
-
-            if hasattr(result, "message_id"):
-                logging.info(f"Email sent successfully to {recipient_email}, messageId: {result.message_id}")
-            else:
-                logging.info(f"Email sent successfully to {recipient_email}, raw result: {result}")
 
             return result
         except Exception as e:

@@ -1216,6 +1216,66 @@ paths:
         '404':
           description: Condition not found
 
+  /alertlogs:
+    get:
+      summary: Get Alert Logs
+      tags:
+        - AlertLogs
+      description: Retrieve alert logs for the authenticated user. Optionally filter by `deviceId`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter alert logs by device ID.
+      responses:
+        '200':
+          description: List of alert logs retrieved successfully.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AlertLog'
+        '401':
+          description: Unauthorized (JWT token missing or invalid).
+        '500':
+          description: Internal server error.
+
+    delete:
+      summary: Delete an Alert Log
+      tags:
+        - AlertLogs
+      description: Delete an alert log for the authenticated user.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                alertLogId:
+                  type: string
+                  description: ID of the alert log to delete.
+              required:
+                - alertLogId
+      responses:
+        '200':
+          description: Alert log deleted successfully.
+        '400':
+          description: Missing required fields or invalid request body.
+        '401':
+          description: Unauthorized (JWT token missing or invalid).
+        '404':
+          description: Alert log not found.
+        '500':
+          description: Internal server error.
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1373,6 +1433,63 @@ components:
               - SMS
 
           description: List of notification methods to use when the condition is met
+
+    AlertLog:
+      type: object
+      properties:
+        _id:
+          type: string
+        deviceId:
+          type: string
+        message:
+          type: string
+        condition:
+          type: object
+          properties:
+            _id:
+              type: string
+            type:
+              type: string
+            userId:
+              type: string
+            deviceId:
+              type: string
+              nullable: true
+            valueType:
+              type: string
+            minValue:
+              type: number
+            maxValue:
+              type: number
+            exactValue:
+              type: number
+              nullable: true
+            unit:
+              type: string
+            scope:
+              type: string
+            notificationMethods:
+              type: array
+              items:
+                type: string
+        user_id:
+          type: string
+        telemetry_data:
+          type: array
+          items:
+            type: object
+            properties:
+              valueType:
+                type: string
+              value:
+                type: number
+              longitude:
+                type: string
+              latitude:
+                type: string
+        timestamp:
+          type: string
+          format: date-time
 
   SasAccessInfo:
     type: object

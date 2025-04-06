@@ -55,7 +55,20 @@ def post_telemetry(req: func.HttpRequest) -> func.HttpResponse:
             status_code=400, 
             mimetype="application/json"
         )
-    
+
+    # Search for the deviceId across all users in the database
+    cosmos_service = CosmosDBService()
+    logging.info(f"Searching for deviceId={device_id} across all users in CosmosDB.")
+    user = cosmos_service.find_document({"Devices.deviceId": device_id})
+
+    if not user:
+        logging.error(f"Device with deviceId={device_id} not found in any user.")
+        return func.HttpResponse(
+            json.dumps({"message": "Device not found"}), 
+            status_code=404, 
+            mimetype="application/json"
+        )
+
     # Generate telemetry data structure
     telemetry_data = {
         "deviceId": device_id,
@@ -64,22 +77,9 @@ def post_telemetry(req: func.HttpRequest) -> func.HttpResponse:
         "values": values,  # List of key-value pairs
     }
 
-    # CosmosDB: Find the user associated with the deviceId
-    cosmos_service = CosmosDBService()
-    logging.info(f"Searching for user with deviceId={device_id} in CosmosDB.")
-
+    # Proceed with processing the telemetry data
     fire_detection_result = "No image provided"
     if image:
-        try:
-            user = cosmos_service.find_document({"Devices.deviceId": device_id})
-        except Exception as e:
-            logging.exception(f"Error while querying CosmosDB for deviceId={device_id}: {str(e)}")
-            return func.HttpResponse(
-                json.dumps({"message": "Error while querying database"}), 
-                status_code=500, 
-                mimetype="application/json"
-            )
-
         try:
             image_url, fire_detection_result = handle_fire_detection_and_notification(image, device_id, user, telemetry_data)
         except Exception as e:
