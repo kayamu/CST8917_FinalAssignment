@@ -2,6 +2,7 @@ import logging
 from azure.iot.hub import IoTHubRegistryManager
 from config.azure_config import get_azure_config
 from azure_services.eventtopic_service import forward_event
+from typing import Union
 
 
 class IoTHubService:
@@ -45,19 +46,44 @@ class IoTHubService:
             logging.exception(f"Failed to register device in IoT Hub: {str(e)}")
             raise e
 
-    def delete_device_from_iot_hub(self, device_id: str):
+    def delete_device_from_iot_hub(self, device_id: Union[str, list]):
         """
-        Deletes a device from IoT Hub.
+        Deletes a device or multiple devices from IoT Hub.
+        
+        Parameters:
+        - device_id: can be a single device ID string or a list of device IDs
         """
         try:
             if not device_id:
-                raise ValueError("Device ID is required for IoT Hub deletion.")
+                raise ValueError("Device ID or list of device IDs is required for IoT Hub deletion.")
             
-            # Delete the device from IoT Hub
-            self.registry_manager.delete_device(device_id)
-            logging.info(f"Device {device_id} deleted from IoT Hub successfully.")
+            # If a single device ID is provided
+            if isinstance(device_id, str):
+                self.registry_manager.delete_device(device_id)
+                logging.info(f"Device {device_id} deleted from IoT Hub successfully.")
+            # If a list of device IDs is provided
+            elif isinstance(device_id, list):
+                deleted_devices = []
+                failed_devices = []
+                
+                for dev_id in device_id:
+                    try:
+                        self.registry_manager.delete_device(dev_id)
+                        deleted_devices.append(dev_id)
+                        logging.info(f"Device {dev_id} deleted from IoT Hub successfully.")
+                    except Exception as inner_e:
+                        failed_devices.append({"device_id": dev_id, "error": str(inner_e)})
+                        logging.error(f"Failed to delete device {dev_id} from IoT Hub: {str(inner_e)}")
+                
+                if failed_devices:
+                    logging.warning(f"Some devices failed to delete: {len(failed_devices)} out of {len(device_id)}")
+                    return {"deleted": deleted_devices, "failed": failed_devices}
+                return {"deleted": deleted_devices}
+            else:
+                raise TypeError("device_id must be a string or a list of strings")
+                
         except Exception as e:
-            logging.exception(f"Failed to delete device from IoT Hub: {str(e)}")
+            logging.exception(f"Failed to delete device(s) from IoT Hub: {str(e)}")
             raise e
 
     def send_telemetry_to_event_hub(self, device_id: str, telemetry_data: dict):

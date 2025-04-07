@@ -2,9 +2,10 @@ import json
 import logging
 import uuid
 import azure.functions as func
-from config.jwt_utils import create_token, decode_token
+from config.jwt_utils import create_token, authenticate_user
 from config.password_utils import hash_password, verify_password
 from azure_services.cosmosdb_service import CosmosDBService
+
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     """
@@ -20,7 +21,9 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
       USERS  -> get_users (authorization required, admin only)
     """
     method = req.method.upper()
-    if method == "POST":
+    if method == "LOGIN":
+        return login_user(req)
+    elif method == "POST":
         return create_user(req)
     elif method == "GET":
         return get_user(req)
@@ -30,12 +33,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         return update_password(req)
     elif method == "DELETE":
         return delete_user(req)
-    elif method == "LOGIN":
-        return login_user(req)
-    elif method == "ADMIN":
-        return create_admin_user(req)
-    elif method == "USERS":
-        return get_users(req)
+
     else:
         return func.HttpResponse("Method not allowed", status_code=405)
 
@@ -45,9 +43,6 @@ def create_user(req: func.HttpRequest, user_type: str = "user") -> func.HttpResp
         req_body = req.get_json()
     except ValueError:
         return func.HttpResponse("Invalid JSON body", status_code=400)
-    
-    # Generate a unique userId using uuid (ignoring any provided userId)
-    user_id = str(uuid.uuid4())
     
     # Extract required fields from the request body
     username = req_body.get("username")
@@ -78,7 +73,8 @@ def create_user(req: func.HttpRequest, user_type: str = "user") -> func.HttpResp
             status_code=400, 
             mimetype="application/json"
         )
-    
+
+
     # Check for unique username and email
     cosmos_service = CosmosDBService()
     existing_user = cosmos_service.find_document({"$or": [{"username": username}, {"email": email}]})
@@ -92,7 +88,12 @@ def create_user(req: func.HttpRequest, user_type: str = "user") -> func.HttpResp
     
     # Hash the provided password
     hashed_pw = hash_password(password)
-    
+    # Generate a unique userId using uuid (ignoring any provided userId)
+    user_id = str(uuid.uuid4())
+    # Generate a token for the newly created user
+    token = create_token(user_id)
+
+
     # Prepare the user document according to the specified structure.
     user_doc = {
         "_id": user_id,            # ShardKey (userId) generated as a UUID
@@ -105,7 +106,7 @@ def create_user(req: func.HttpRequest, user_type: str = "user") -> func.HttpResp
         "email": email,
         "emergencyContact": emergency_contact,  # Optional emergency contact field
         "password": hashed_pw,
-        "authToken": None,         # Default authentication token is None
+        "authToken": token,         # Default authentication token is None
         "Devices": devices,        # Devices list (each device will have a telemetryData array)
         "type": user_type          # Adding userType (default: "user")
     }
@@ -113,124 +114,76 @@ def create_user(req: func.HttpRequest, user_type: str = "user") -> func.HttpResp
     # Insert the user document into Cosmos DB
     insert_result = cosmos_service.insert_document(user_doc)
     
-    # Generate an authentication token for the new user using userId as payload
-    token = create_token(user_id)
-    # Update the document with the generated token
-    cosmos_service.update_document(
-        {"_id": user_id, "type": user_type}, 
-        {"$set": {"authToken": token}}  # Use $set operator to update the authToken field
-    )
     
     response_body = {"message": f"{user_type.capitalize()} created successfully", "token": token}
     return func.HttpResponse(json.dumps(response_body), status_code=201, mimetype="application/json")
 
-def create_admin_user(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("Processing create_admin_user request.")
-    return create_user(req, user_type="admin")
 
 def get_user(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Processing get_user request.")
     
-    # Check for Authorization header
-    auth_header = req.headers.get("Authorization")
-    if not auth_header:
-        logging.error("Authorization header is missing.")
-        return func.HttpResponse(
-            json.dumps({"message": "Unauthorized"}), 
-            status_code=401, 
-            mimetype="application/json"
-        )
+    # Validate token and get user_id
+    user_id = authenticate_user(req)
+    if isinstance(user_id, func.HttpResponse):  # If validation failed, return the error response
+        return user_id
     
-    # Extract token from the Authorization header
-    token = auth_header.split("Bearer ")[-1]
-    logging.info(f"Extracted token: {token}")
-    
-    # Decode the token
-    payload = decode_token(token)
-    if not payload:
-        logging.error("Token decoding failed or token is invalid.")
-        return func.HttpResponse("Invalid token", status_code=401)
-    
-    # Extract user_id from the token payload
-    user_id = payload.get("user_id")
-    if not user_id:
-        logging.error("Token payload does not contain user_id.")
-        return func.HttpResponse("Invalid token payload: user_id missing", status_code=401)
-    
-    logging.info(f"Decoded user_id from token: {user_id}")
-    
-    # Query CosmosDB for the user document
     cosmos_service = CosmosDBService()
     try:
         user = cosmos_service.find_document({"_id": user_id})
         if not user:
-            logging.error(f"User not found in CosmosDB for user_id: {user_id}")
             return func.HttpResponse(
                 json.dumps({"message": "User not found"}), 
                 status_code=404, 
                 mimetype="application/json"
             )
+        user.pop("password", None)
+        user["_id"] = str(user["_id"])
+        return func.HttpResponse(json.dumps(user), status_code=200, mimetype="application/json")
     except Exception as e:
         logging.exception(f"Error while querying CosmosDB for user_id: {user_id}")
         return func.HttpResponse(f"Error querying database: {str(e)}", status_code=500)
-    
-    logging.info(f"User found in CosmosDB: {user}")
-    
-    # Remove sensitive information and convert _id to string for JSON serialization
-    user.pop("password", None)
-    user["_id"] = str(user["_id"])
-    logging.info(f"Final user object to return: {user}")
-    
-    return func.HttpResponse(json.dumps(user), status_code=200, mimetype="application/json")
 
 def update_user_put(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Processing update_user_put request.")
-    # This function requires authorization.
-    auth_header = req.headers.get("Authorization")
-    if not auth_header:
-        return func.HttpResponse("Authorization header missing", status_code=401)
     
-    token = auth_header.split("Bearer ")[-1]
-    payload = decode_token(token)
-    if not payload:
-        return func.HttpResponse("Invalid token", status_code=401)
+    # Validate token and get user_id
+    logged_in_user_id = authenticate_user(req)
+    if isinstance(logged_in_user_id, func.HttpResponse):
+        return logged_in_user_id
     
-    user_id = payload.get("user_id")
     try:
         req_body = req.get_json()
     except ValueError:
-        return func.HttpResponse("Invalid JSON body", status_code=400)
+        req_body = {}
+
+    # Support both query parameters and JSON body
+    target_user_id = req_body.get("userId") or req.params.get("userId", logged_in_user_id)
     
-    # Allowed fields for update: firstName, lastName, email, phone
-    update_data = {}
-    if "firstName" in req_body:
-        update_data["firstName"] = req_body["firstName"]
-    if "lastName" in req_body:
-        update_data["lastName"] = req_body["lastName"]
-    if "email" in req_body:
-        update_data["email"] = req_body["email"]
-    if "phone" in req_body:
-        update_data["phone"] = req_body["phone"]
-    
+    # Check if updateData exists, otherwise use the entire req_body as update data
+    if "updateData" in req_body:
+        update_data = req_body["updateData"]
+    else:
+        # Remove userId if present to avoid conflicts
+        if "userId" in req_body:
+            del req_body["userId"]
+        update_data = req_body if req_body else {"type": req.params.get("userType")}
+
     if not update_data:
         return func.HttpResponse(
-            json.dumps({"message": "No update data provided"}), 
+            json.dumps({"message": "Missing update data"}), 
             status_code=400, 
             mimetype="application/json"
         )
     
-    # Wrap update_data with $set operator
-    update_query = {"$set": update_data}
-    
     cosmos_service = CosmosDBService()
     try:
-        result = cosmos_service.update_document({"_id": user_id}, update_query)
-        if result.modified_count == 0:
-            return func.HttpResponse(
-                json.dumps({"message": "User not updated"}), 
-                status_code=400, 
-                mimetype="application/json"
-            )
+        # Check if the logged-in user is an admin
+        admin_user = cosmos_service.find_document({"_id": logged_in_user_id, "type": "admin"})
+        if not admin_user and target_user_id != logged_in_user_id:
+            return func.HttpResponse("Access denied: Cannot update other users", status_code=403)
+        
+        result = cosmos_service.update_document({"_id": target_user_id}, {"$set": update_data})
+
     except Exception as e:
         logging.error(f"Error while updating user: {str(e)}")
         return func.HttpResponse(f"Error updating user: {str(e)}", status_code=500)
@@ -276,7 +229,8 @@ def update_password(req: func.HttpRequest) -> func.HttpResponse:
     
     # Hash the new password and update the user document
     hashed_new_pw = hash_password(new_password)
-    result = cosmos_service.update_document({"email": email}, {"password": hashed_new_pw})
+    # Fix: Use $set operator for MongoDB update
+    result = cosmos_service.update_document({"email": email}, {"$set": {"password": hashed_new_pw}})
     if result.modified_count == 0:
         return func.HttpResponse("Password not updated", status_code=400)
     
@@ -288,24 +242,66 @@ def update_password(req: func.HttpRequest) -> func.HttpResponse:
 
 def delete_user(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Processing delete_user request.")
-    auth_header = req.headers.get("Authorization")
-    if not auth_header:
-        return func.HttpResponse("Authorization header missing", status_code=401)
     
-    token = auth_header.split("Bearer ")[-1]
-    payload = decode_token(token)
-    if not payload:
-        return func.HttpResponse("Invalid token", status_code=401)
+    # Validate token and get user_id
+    logged_in_user_id = authenticate_user(req)
+    if isinstance(logged_in_user_id, func.HttpResponse):  # If validation failed, return the error response
+        return logged_in_user_id
     
-    user_id = payload.get("user_id")
+    try:
+        req_body = req.get_json()
+    except ValueError:
+        req_body = {}
+
+    # Support both query parameters and JSON body
+    target_user_id = req_body.get("userId") or req.params.get("userId", logged_in_user_id)
+
     cosmos_service = CosmosDBService()
-    result = cosmos_service.delete_document({"_id": user_id})
-    if result.deleted_count == 0:
-        return func.HttpResponse(
-            json.dumps({"message": "User not deleted"}), 
-            status_code=400, 
-            mimetype="application/json"
-        )
+    try:
+        # Check if the logged-in user is an admin
+        admin_user = cosmos_service.find_document({"_id": logged_in_user_id, "type": "admin"})
+        if not admin_user and target_user_id != logged_in_user_id:
+            return func.HttpResponse("Access denied: Cannot delete other users", status_code=403)
+        
+        # Get the user document to find associated devices
+        user_document = cosmos_service.find_document({"_id": target_user_id})
+        if not user_document:
+            return func.HttpResponse(
+                json.dumps({"message": "User not found"}), 
+                status_code=404, 
+                mimetype="application/json"
+            )
+        
+        # Extract all device IDs from the user document
+        devices = user_document.get("Devices", [])
+        device_ids = []
+        for device in devices:
+            if "deviceId" in device:
+                device_ids.append(device["deviceId"])
+        
+        # Delete devices from IoT Hub if there are any
+        if device_ids:
+            from azure_services.iot_hub_service import IoTHubService
+            iot_service = IoTHubService()
+            try:
+                # Delete all devices in batch
+                iot_result = iot_service.delete_device_from_iot_hub(device_ids)
+                logging.info(f"IoT Hub device deletion results: {iot_result}")
+            except Exception as iot_e:
+                logging.error(f"Error deleting devices from IoT Hub: {str(iot_e)}")
+                # Continue with user deletion even if device deletion fails
+        
+        # Delete the user from Cosmos DB
+        result = cosmos_service.delete_document({"_id": target_user_id})
+        if result.deleted_count == 0:
+            return func.HttpResponse(
+                json.dumps({"message": "User not deleted"}), 
+                status_code=400, 
+                mimetype="application/json"
+            )
+    except Exception as e:
+        logging.error(f"Error while deleting user: {str(e)}")
+        return func.HttpResponse(f"Error deleting user: {str(e)}", status_code=500)
     
     return func.HttpResponse(
         json.dumps({"message": "User deleted successfully"}), 
@@ -368,117 +364,4 @@ def login_user(req: func.HttpRequest) -> func.HttpResponse:
     # Return the new token as a response
     response_body = {"message": "Login successful", "token": new_token}
     return func.HttpResponse(json.dumps(response_body), status_code=200, mimetype="application/json")
-
-def get_users(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("Processing get_users request.")
-    
-    # Check for Authorization header
-    auth_header = req.headers.get("Authorization")
-    if not auth_header:
-        logging.error("Authorization header is missing.")
-        return func.HttpResponse("Authorization header missing", status_code=401)
-    
-    # Extract token from the Authorization header
-    token = auth_header.split("Bearer ")[-1]
-    logging.info(f"Extracted token: {token}")
-    
-    # Decode the token
-    payload = decode_token(token)
-    if not payload:
-        logging.error("Token decoding failed or token is invalid.")
-        return func.HttpResponse("Invalid token", status_code=401)
-    
-    # Extract user_id from the token payload
-    user_id = payload.get("user_id")
-    if not user_id:
-        logging.error("Token payload does not contain user_id.")
-        return func.HttpResponse("Invalid token payload: user_id missing", status_code=401)
-    
-    logging.info(f"Decoded user_id from token: {user_id}")
-    
-    # Query CosmosDB for the admin user
-    cosmos_service = CosmosDBService()
-    try:
-        admin_user = cosmos_service.find_document({"_id": user_id, "type": "admin"})
-        if not admin_user:
-            logging.error(f"User with user_id: {user_id} is not an admin.")
-            return func.HttpResponse("Access denied: Only admins can access this resource", status_code=403)
-    except Exception as e:
-        logging.exception(f"Error while querying CosmosDB for admin user_id: {user_id}")
-        return func.HttpResponse(f"Error querying database: {str(e)}", status_code=500)
-    
-    logging.info(f"Admin user verified: {admin_user}")
-    
-    # Build the query based on query parameters
-    query = {}
-    user_type = req.params.get("userType")
-    device_name = req.params.get("deviceName")
-    device_id = req.params.get("deviceId")
-    telemetry_date = req.params.get("telemetryDate")
-    sensor_type = req.params.get("sensorType")
-    value_type = req.params.get("valueType")
-    value_min = req.params.get("valueMin")
-    value_max = req.params.get("valueMax")
-    
-    if user_type:
-        query["type"] = user_type
-    else:
-        query["type"] = {"$in": ["user", "admin"]}  # Default to both user and admin types
-    
-    # Query CosmosDB for users
-    try:
-        users = cosmos_service.find_documents(query)
-        filtered_users = []
-        for user in users:
-            # Filter by device and telemetry information
-            if device_name or device_id or telemetry_date or sensor_type or value_type or value_min or value_max:
-                devices = user.get("Devices", [])
-                matching_devices = []
-                for device in devices:
-                    if device_name and device.get("deviceName") != device_name:
-                        continue
-                    if device_id and device.get("deviceId") != device_id:
-                        continue
-                    
-                    # Filter telemetry data
-                    telemetry_data = device.get("telemetryData", [])
-                    matching_telemetry = []
-                    for telemetry in telemetry_data:
-                        if telemetry_date and telemetry.get("event_date") != telemetry_date:
-                            continue
-                        if sensor_type and not any(value.get("valueType") == sensor_type for value in telemetry.get("values", [])):
-                            continue
-                        if value_type or value_min or value_max:
-                            for value in telemetry.get("values", []):
-                                if value_type and value.get("valueType") != value_type:
-                                    continue
-                                if value_min and value.get("value") < float(value_min):
-                                    continue
-                                if value_max and value.get("value") > float(value_max):
-                                    continue
-                                matching_telemetry.append(telemetry)
-                                break
-                        else:
-                            matching_telemetry.append(telemetry)
-                    
-                    if matching_telemetry:
-                        device["telemetryData"] = matching_telemetry
-                        matching_devices.append(device)
-                
-                if matching_devices:
-                    user["Devices"] = matching_devices
-                    filtered_users.append(user)
-            else:
-                filtered_users.append(user)
-        
-        # Remove sensitive information and convert _id to string for JSON serialization
-        for user in filtered_users:
-            user.pop("password", None)
-            user["_id"] = str(user["_id"])
-        logging.info(f"Total users found: {len(filtered_users)}")
-    except Exception as e:
-        logging.exception("Error while querying CosmosDB for users.")
-        return func.HttpResponse(f"Error querying database: {str(e)}", status_code=500)
-    
-    return func.HttpResponse(json.dumps(filtered_users), status_code=200, mimetype="application/json")
 

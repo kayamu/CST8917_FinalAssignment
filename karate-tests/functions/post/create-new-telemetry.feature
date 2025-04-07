@@ -27,7 +27,7 @@ Scenario: Add telemetry data with normal image
 Scenario: Add telemetry data with fire image
   Given path 'telemetry'
   And multipart field deviceId = deviceId
-  And multipart field values = '[{ "valueType": "temperature", "value": "-25", "longitude": "40.5555", "latitude": "45.5555" }]'
+  And multipart field values = '[{ "valueType": "temperature", "value": -50, "longitude": "40.5555", "latitude": "45.5555" }]'
   And multipart file image = { read: '../images/fire2.jpg', filename: 'nature.jpg', contentType: 'image/jpeg' }
   When method post
   Then status 202

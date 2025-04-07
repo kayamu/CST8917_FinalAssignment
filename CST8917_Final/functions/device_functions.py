@@ -6,6 +6,29 @@ from config.jwt_utils import authenticate_user
 from azure_services.cosmosdb_service import CosmosDBService
 from azure_services.iot_hub_service import IoTHubService
 
+def main(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    POST  -> register_device (cihaz kaydı)
+    GET   -> get_devices
+    PUT/PATCH -> update_device
+    DELETE -> delete_device
+    """
+    method = req.method.upper()
+    if method == "POST":
+        return register_device(req)
+    elif method == "GET":
+        return get_devices(req)
+    elif method in ["PUT", "PATCH"]:
+        return update_device(req)
+    elif method == "DELETE":
+        return delete_device_request (req)
+    else:
+        return func.HttpResponse(
+            json.dumps({"message": "Method not allowed"}), 
+            status_code=405, 
+            mimetype="application/json"
+        )
+
 def register_device(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Processing register_device request.")
     
@@ -30,6 +53,8 @@ def register_device(req: func.HttpRequest) -> func.HttpResponse:
     sensor_type = req_body.get("sensorType")
     location = req_body.get("location", {})
     telemetry_data = req_body.get("telemetryData", [])
+    status_data = req_body.get("status", [])
+    
     if not device_id or not device_name or not sensor_type or not location.get("name"):
         return func.HttpResponse(
             json.dumps({"message": "Missing required fields"}), 
@@ -76,7 +101,8 @@ def register_device(req: func.HttpRequest) -> func.HttpResponse:
             "latitude": location.get("latitude", "")
         },
         "registrationDate": datetime.datetime.utcnow().isoformat(),  # Add registration date
-        "telemetryData": telemetry_data
+        "telemetryData": telemetry_data,
+        "status": status_data
     }
 
     # Add the device to the user's Devices array
@@ -92,7 +118,7 @@ def register_device(req: func.HttpRequest) -> func.HttpResponse:
     )
 
 def get_devices(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("Processing get_devices request.")
+    logging.info("Processing get_devices request with filter parameters.")
     
     # Authenticate the user
     user_id = authenticate_user(req)
@@ -112,60 +138,57 @@ def get_devices(req: func.HttpRequest) -> func.HttpResponse:
     # Get the devices array from the user document
     devices = user.get("Devices", [])
     
-    # Extract query parameters
+    # Get query parameters for filtering
     device_id = req.params.get("deviceId")
     device_name = req.params.get("deviceName")
-    telemetry_date = req.params.get("telemetryDate")
     sensor_type = req.params.get("sensorType")
-    value_type = req.params.get("valueType")
-    value_min = req.params.get("valueMin")
-    value_max = req.params.get("valueMax")
+    location = req.params.get("location")
     
-    # Filter devices based on query parameters
-    filtered_devices = []
-    for device in devices:
-        if device_id and device.get("deviceId") != device_id:
-            continue
-        if device_name and device.get("deviceName") != device_name:
-            continue
-        
-        # Filter telemetry data
-        telemetry_data = device.get("telemetryData", [])
-        matching_telemetry = []
-        for telemetry in telemetry_data:
-            if telemetry_date and telemetry.get("event_date") != telemetry_date:
-                continue
-            if sensor_type and not any(value.get("valueType") == sensor_type for value in telemetry.get("values", [])):
-                continue
-            if value_type or value_min or value_max:
-                for value in telemetry.get("values", []):
-                    if value_type and value.get("valueType") != value_type:
-                        continue
-                    if value_min and value.get("value") < float(value_min):
-                        continue
-                    if value_max and value.get("value") > float(value_max):
-                        continue
-                    matching_telemetry.append(telemetry)
-                    break
-            else:
-                matching_telemetry.append(telemetry)
-        
-        if matching_telemetry:
-            device["telemetryData"] = matching_telemetry
-            filtered_devices.append(device)
-        elif not telemetry_date and not sensor_type and not value_type and not value_min and not value_max:
-            filtered_devices.append(device)
+    # Apply filters if parameters are provided
+    filtered_devices = devices
     
-    # If a specific deviceId is provided, return only that device
-    if device_id and not filtered_devices:
+    # Filter by deviceId if provided
+    if device_id:
+        filtered_devices = [d for d in filtered_devices if d.get("deviceId") == device_id]
+        if not filtered_devices:
+            return func.HttpResponse(
+                json.dumps({"message": f"No device found with ID: {device_id}"}), 
+                status_code=404, 
+                mimetype="application/json"
+            )
+        # Return single device if deviceId is specified
         return func.HttpResponse(
-            json.dumps({"message": "Device not found"}), 
-            status_code=404, 
+            json.dumps({"device": filtered_devices[0]}), 
+            status_code=200, 
             mimetype="application/json"
         )
     
+    # Apply additional filters if no specific device ID was requested
+    if device_name:
+        filtered_devices = [d for d in filtered_devices if d.get("deviceName", "").lower() == device_name.lower()]
+    
+    if sensor_type:
+        filtered_devices = [d for d in filtered_devices if d.get("sensorType", "").lower() == sensor_type.lower()]
+    
+    if location:
+        filtered_devices = [d for d in filtered_devices 
+                           if d.get("location", {}).get("name", "").lower() == location.lower()]
+    
+    # Return filtered devices with additional metadata
+    response_data = {
+        "devices": filtered_devices,
+        "count": len(filtered_devices),
+        "userId": user_id,
+        "filters": {
+            "deviceName": device_name,
+            "sensorType": sensor_type,
+            "location": location
+        },
+        "timestamp": datetime.datetime.utcnow().isoformat()
+    }
+    
     return func.HttpResponse(
-        json.dumps(filtered_devices), 
+        json.dumps(response_data), 
         status_code=200, 
         mimetype="application/json"
     )
@@ -178,22 +201,37 @@ def update_device(req: func.HttpRequest) -> func.HttpResponse:
     if isinstance(user_id, func.HttpResponse):  # Check if authentication failed
         return user_id
     
+    # Get deviceId from query parameters or request body
+    device_id = req.params.get("deviceId")
+    
     # Parse the request body
     try:
         req_body = req.get_json()
+        # If deviceId wasn't in query params, try to get it from body
+        if not device_id:
+            device_id = req_body.get("deviceId")
+        
+        # Use the body as update data, or get it from the update field if present
+        update_data = req_body.get("update", req_body)
+        # Remove deviceId from update data if it's there to prevent changing the ID
+        if "deviceId" in update_data:
+            del update_data["deviceId"]
+        
     except ValueError:
+        req_body = {}
+        update_data = {}
+    
+    # Validate required fields
+    if not device_id:
         return func.HttpResponse(
-            json.dumps({"message": "Invalid JSON body"}), 
+            json.dumps({"message": "Missing deviceId parameter"}), 
             status_code=400, 
             mimetype="application/json"
         )
     
-    # Validate required fields
-    device_id = req_body.get("deviceId")
-    update_data = req_body.get("update", {})
-    if not device_id or not update_data:
+    if not update_data:
         return func.HttpResponse(
-            json.dumps({"message": "Missing required fields"}), 
+            json.dumps({"message": "No update data provided"}), 
             status_code=400, 
             mimetype="application/json"
         )
@@ -213,30 +251,39 @@ def update_device(req: func.HttpRequest) -> func.HttpResponse:
     device = next((d for d in devices if d["deviceId"] == device_id), None)
     if not device:
         return func.HttpResponse(
-            json.dumps({"message": "Device not found"}), 
+            json.dumps({"message": f"Device with ID '{device_id}' not found"}), 
             status_code=404, 
             mimetype="application/json"
         )
     
     # Update the device in the user's Devices array
-    result = cosmos_service.update_document(
-        {"_id": user_id, "Devices.deviceId": device_id},
-        {"$set": {f"Devices.$.{key}": value for key, value in update_data.items()}}
-    )
-    if result.modified_count == 0:
+    try:
+        result = cosmos_service.update_document(
+            {"_id": user_id, "Devices.deviceId": device_id},
+            {"$set": {f"Devices.$.{key}": value for key, value in update_data.items()}}
+        )
+        
+        if result.modified_count == 0:
+            return func.HttpResponse(
+                json.dumps({"message": "Device not updated - no changes detected"}), 
+                status_code=400, 
+                mimetype="application/json"
+            )
+        
         return func.HttpResponse(
-            json.dumps({"message": "Device not updated"}), 
-            status_code=400, 
+            json.dumps({"message": "Device updated successfully"}), 
+            status_code=200, 
             mimetype="application/json"
         )
-    
-    return func.HttpResponse(
-        json.dumps({"message": "Device updated successfully"}), 
-        status_code=200, 
-        mimetype="application/json"
-    )
+    except Exception as e:
+        logging.exception(f"Error updating device: {str(e)}")
+        return func.HttpResponse(
+            json.dumps({"message": f"Failed to update device: {str(e)}"}),
+            status_code=500,
+            mimetype="application/json"
+        )
 
-def delete_device(req: func.HttpRequest) -> func.HttpResponse:
+def delete_device_request(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Processing delete_device request.")
     
     # Authenticate the user
@@ -262,7 +309,8 @@ def delete_device(req: func.HttpRequest) -> func.HttpResponse:
             status_code=400, 
             mimetype="application/json"
         )
-    
+
+
     # Fetch the user's devices from CosmosDB
     cosmos_service = CosmosDBService()
     user = cosmos_service.find_document({"_id": user_id})
@@ -313,25 +361,4 @@ def delete_device(req: func.HttpRequest) -> func.HttpResponse:
         mimetype="application/json"
     )
 
-def main(req: func.HttpRequest) -> func.HttpResponse:
-    """
-    POST  -> register_device (cihaz kaydı)
-    GET   -> get_devices
-    PUT/PATCH -> update_device
-    DELETE -> delete_device
-    """
-    method = req.method.upper()
-    if method == "POST":
-        return register_device(req)
-    elif method == "GET":
-        return get_devices(req)
-    elif method in ["PUT", "PATCH"]:
-        return update_device(req)
-    elif method == "DELETE":
-        return delete_device(req)
-    else:
-        return func.HttpResponse(
-            json.dumps({"message": "Method not allowed"}), 
-            status_code=405, 
-            mimetype="application/json"
-        )
+

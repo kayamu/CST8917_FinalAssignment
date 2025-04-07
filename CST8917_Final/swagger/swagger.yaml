@@ -5,7 +5,6 @@ info:
   version: "1.5"
 
 servers:
-
   - url: https://cst8922finalfunctionapp.azurewebsites.net/api
     description: Azure Function 8922App
   - url: https://cst8922finaltest.azurewebsites.net/api
@@ -153,6 +152,13 @@ paths:
         - User
       security:
         - bearerAuth: []
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: ID of the user to update
       requestBody:
         required: true
         content:
@@ -160,15 +166,21 @@ paths:
             schema:
               type: object
               properties:
-                firstName:
+                username:
                   type: string
-                lastName:
+                name:
+                  type: string
+                surname:
+                  type: string
+                address:
                   type: string
                 email:
                   type: string
                 phone:
                   type: string
                   description: Optional phone number
+                emergencyContact:
+                  type: string
       responses:
         '200':
           description: User updated successfully
@@ -217,6 +229,13 @@ paths:
         - User
       security:
         - bearerAuth: []
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: ID of the user to delete
       responses:
         '200':
           description: User deleted successfully
@@ -226,196 +245,6 @@ paths:
           description: Unauthorized (JWT token missing or invalid)
         '404':
           description: User not found
-
-  /user/admin:
-    post:
-      summary: Create a new admin user
-      tags:
-        - Admin
-      description: Create a new admin user with elevated privileges.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                firstName:
-                  type: string
-                lastName:
-                  type: string
-                email:
-                  type: string
-                password:
-                  type: string
-                phone:
-                  type: string
-                  description: Optional phone number
-              required:
-                - firstName
-                - lastName
-                - email
-                - password
-      responses:
-        '201':
-          description: Admin user created successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                  token:
-                    type: string
-        '400':
-          description: Missing required fields
-        '500':
-          description: Internal server error
-
-  /users:
-    get:
-      summary: Get all users (Admin only)
-      tags:
-        - Admin
-      description: Retrieve a list of all users. Only accessible by admin users. Supports filtering by user details, device details, and telemetry data.
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: firstName
-          in: query
-          description: Filter by user's first name
-          required: false
-          schema:
-            type: string
-        - name: lastName
-          in: query
-          description: Filter by user's last name
-          required: false
-          schema:
-            type: string
-        - name: email
-          in: query
-          description: Filter by user's email
-          required: false
-          schema:
-            type: string
-        - name: phone
-          in: query
-          description: Filter by user's phone number
-          required: false
-          schema:
-            type: string
-        - name: userType
-          in: query
-          description: Filter by user type (e.g., user, admin)
-          required: false
-          schema:
-            type: string
-            enum:
-              - user
-              - admin
-        - name: deviceId
-          in: query
-          description: Filter by device ID
-          required: false
-          schema:
-            type: string
-        - name: deviceName
-          in: query
-          description: Filter by device name
-          required: false
-          schema:
-            type: string
-        - name: sensorType
-          in: query
-          description: Filter by sensor type (e.g., Temperature, Humidity)
-          required: false
-          schema:
-            type: string
-        - name: telemetryDate
-          in: query
-          description: Filter telemetry data by event date
-          required: false
-          schema:
-            type: string
-            format: date-time
-        - name: valueType
-          in: query
-          description: Filter telemetry data by value type
-          required: false
-          schema:
-            type: string
-        - name: valueMin
-          in: query
-          description: Filter telemetry data by minimum value
-          required: false
-          schema:
-            type: number
-        - name: valueMax
-          in: query
-          description: Filter telemetry data by maximum value
-          required: false
-          schema:
-            type: number
-      responses:
-        '200':
-          description: List of users retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    _id:
-                      type: string
-                    userId:
-                      type: string
-                    firstName:
-                      type: string
-                    lastName:
-                      type: string
-                    email:
-                      type: string
-                    phone:
-                      type: string
-                    Devices:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          deviceId:
-                            type: string
-                          deviceName:
-                            type: string
-                          telemetryData:
-                            type: array
-                            items:
-                              type: object
-                              properties:
-                                eventId:
-                                  type: string
-                                event_date:
-                                  type: string
-                                  format: date-time
-                                values:
-                                  type: array
-                                  items:
-                                    type: object
-                                    properties:
-                                      valueType:
-                                        type: string
-                                      value:
-                                        type: number
-                    type:
-                      type: string
-        '401':
-          description: Unauthorized (missing or invalid token)
-        '403':
-          description: Forbidden (only admins can access this endpoint)
-        '500':
-          description: Internal server error
 
   /device:
     post:
@@ -452,40 +281,17 @@ paths:
                     latitude:
                       type: string
                       description: Latitude of the location
-                telemetryData:
+                status:
                   type: array
                   items:
                     type: object
                     properties:
-                      eventId:
+                      valueType:
                         type: string
-                        description: Unique identifier for the telemetry event
-                      event_date:
-                        type: string
-                        format: date-time
-                        description: Date and time of the telemetry event
-                      values:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            valueType:
-                              type: string
-                              description: Type of the value (e.g., Temperature, Humidity)
-                            value:
-                              type: number
-                              description: Value of the telemetry data
-                      status:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            valueType:
-                              type: string
-                              description: Type of the status (e.g., BatteryLevel, Active)
-                            value:
-                              type: string
-                              description: Status value (e.g., 85, on)
+                        description: Type of the status (e.g., BatteryLevel, Active)
+                      value:
+                        type: integer
+                        description: Status value (e.g., 85, on)
               required:
                 - deviceId
                 - deviceName
@@ -544,40 +350,17 @@ paths:
                     latitude:
                       type: string
                       description: Updated latitude of the location
-                telemetryData:
+                status:
                   type: array
                   items:
                     type: object
                     properties:
-                      eventId:
+                      valueType:
                         type: string
-                        description: Unique identifier for the telemetry event
-                      event_date:
+                        description: Type of the status (e.g., BatteryLevel, Active)
+                      value:
                         type: string
-                        format: date-time
-                        description: Date and time of the telemetry event
-                      values:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            valueType:
-                              type: string
-                              description: Type of the value (e.g., Temperature, Humidity)
-                            value:
-                              type: number
-                              description: Value of the telemetry data
-                      status:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            valueType:
-                              type: string
-                              description: Type of the status (e.g., BatteryLevel, Active)
-                            value:
-                              type: string
-                              description: Status value (e.g., 85, on)
+                        description: Status value (e.g., 85, on)
               required:
                 - deviceName
       responses:
@@ -641,37 +424,19 @@ paths:
           required: false
           schema:
             type: string
-        - name: telemetryDate
-          in: query
-          description: Filter telemetry data by event date
-          required: false
-          schema:
-            type: string
-            format: date-time
         - name: sensorType
           in: query
           description: Filter telemetry data by sensor type (e.g., temperature, humidity)
           required: false
           schema:
             type: string
-        - name: valueType
+        - name: location
           in: query
-          description: Filter telemetry data by value type
+          description: Filter telemetry data by sensor type (e.g., temperature, humidity)
           required: false
           schema:
             type: string
-        - name: valueMin
-          in: query
-          description: Filter telemetry data by minimum value
-          required: false
-          schema:
-            type: number
-        - name: valueMax
-          in: query
-          description: Filter telemetry data by maximum value
-          required: false
-          schema:
-            type: number
+
       responses:
         '200':
           description: List of devices or a specific device retrieved successfully
@@ -1275,6 +1040,192 @@ paths:
           description: Alert log not found.
         '500':
           description: Internal server error.
+
+  /manage/users:
+    get:
+      summary: Get all users (Admin only)
+      tags:
+        - Admin
+      description: Retrieve a list of all users. Only accessible by admin users. Supports filtering by user details, device details, and telemetry data.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: query
+          description: Filter by user's userId
+          required: false
+          schema:
+            type: string
+        - name: username
+          in: query
+          description: Filter by user's username
+          required: false
+          schema:
+            type: string
+        - name: email
+          in: query
+          description: Filter by user's email
+          required: false
+          schema:
+            type: string
+        - name: phone
+          in: query
+          description: Filter by user's phone number
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of users retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    _id:
+                      type: string
+                    userId:
+                      type: string
+                    username:
+                      type: string
+                    name:
+                      type: string
+                    surname:
+                      type: string
+                    email:
+                      type: string
+                    phone:
+                      type: string
+                    Devices:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          deviceId:
+                            type: string
+                          deviceName:
+                            type: string
+                          telemetryData:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                eventId:
+                                  type: string
+                                event_date:
+                                  type: string
+                                  format: date-time
+                                values:
+                                  type: array
+                                  items:
+                                    type: object
+                                    properties:
+                                      valueType:
+                                        type: string
+                                      value:
+                                        type: number
+                            status:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  valueType:
+                                    type: string
+                                  value:
+                                    type: string            
+                    type:
+                      type: string
+        '401':
+          description: Unauthorized (missing or invalid token)
+        '403':
+          description: Forbidden (only admins can access this endpoint)
+        '500':
+          description: Internal server error
+
+  /manage/change-user-type:
+    put:
+      summary: Change user type
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      description: Allows an admin to change the type of a user (e.g., from "user" to "admin" or vice versa).
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: ID of the user whose type is to be changed
+        - name: userType
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - user
+              - admin
+          description: New type for the user (e.g., "admin" or "user")
+      responses:
+        '200':
+          description: User type updated successfully
+        '400':
+          description: Missing or invalid fields
+        '401':
+          description: Unauthorized (JWT token missing or invalid)
+        '403':
+          description: Access denied (only admins can perform this action)
+        '404':
+          description: User not found
+        '500':
+          description: Internal server error
+
+  /manage/create-admin:
+    post:
+      summary: Create a new admin user
+      tags:
+        - Admin
+      description: Create a new admin user with elevated privileges.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                name:
+                  type: string
+                surname:
+                  type: string
+                phone:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                address:
+                  type: string
+                emergencyContact:
+                  type: string
+                  description: Optional emergency contact number    
+              required:
+                - username
+                - name
+                - surname
+                - email
+                - password
+      responses:
+        '201':
+          description: Admin user created successfully
+        '400':
+          description: Missing required fields
+        '500':
+          description: Internal server error
+
 
 components:
   securitySchemes:

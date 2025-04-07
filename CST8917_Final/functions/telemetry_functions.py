@@ -72,6 +72,7 @@ def post_telemetry(req: func.HttpRequest) -> func.HttpResponse:
     # Generate telemetry data structure
     telemetry_data = {
         "deviceId": device_id,
+        "userId": user["_id"],  # User ID from the database
         "eventId": str(uuid.uuid4()),  # Generate a unique event ID
         "event_date": event_date,  # Correctly formatted event_date
         "values": values,  # List of key-value pairs

@@ -1,6 +1,7 @@
 import jwt
 import datetime
 import logging
+import json
 from azure.functions import HttpRequest, HttpResponse
 from .azure_config import get_azure_config
 
@@ -32,43 +33,39 @@ def decode_token(token: str):
         logging.error(f"Token decoding failed: Invalid token. Error: {str(e)}")
         return None
 
-def authenticate_user(req: HttpRequest):
+def authenticate_user(req: HttpRequest, return_http_response: bool = True):
     """
-    Authenticate the user using the Authorization header.
+    Validate the Authorization header, decode the token, and extract the user_id.
+    Returns the user_id if successful. If validation fails:
+      - Returns None if return_http_response is False.
+      - Returns an HttpResponse if return_http_response is True.
     """
-    logging.info("Starting user authentication.")
-    try:
-        # Get the Authorization header
-        token = req.headers.get("Authorization")
-        if not token:
-            logging.error("Authorization header is missing.")
-            return None
-        logging.debug(f"Authorization header received: {token}")
-
-        # Extract the token from the "Bearer" scheme
-        if token.startswith("Bearer "):
-            token = token.split(" ")[1]
-        else:
-            logging.error("Authorization header is invalid. Missing 'Bearer' prefix.")
-            return None
-        logging.debug(f"Extracted token: {token}")
-
-        # Decode the token and extract user_id
-        logging.info("Decoding the token.")
-        decoded_token = decode_token(token)
-        if not decoded_token:
-            logging.error("Token decoding failed or token is invalid.")
-            return None
-        logging.debug(f"Decoded token: {decoded_token}")
-
-        user_id = decoded_token.get("user_id")
-        if not user_id:
-            logging.error("Invalid token: user_id is missing.")
-            return None
-        logging.info(f"Authentication successful for user_id={user_id}.")
-
-        return user_id
-    except Exception as e:
-        logging.error(f"Authentication failed due to an exception: {str(e)}")
+    logging.info("Validating token and extracting user_id.")
+    auth_header = req.headers.get("Authorization")
+    if not auth_header:
+        logging.error("Authorization header is missing.")
+        if return_http_response:
+            return HttpResponse(
+                json.dumps({"message": "Unauthorized"}), 
+                status_code=401, 
+                mimetype="application/json"
+            )
         return None
+    
+    token = auth_header.split("Bearer ")[-1]
+    payload = decode_token(token)
+    if not payload:
+        logging.error("Token decoding failed or token is invalid.")
+        if return_http_response:
+            return HttpResponse("Invalid token", status_code=401)
+        return None
+    
+    user_id = payload.get("user_id")
+    if not user_id:
+        logging.error("Token payload does not contain user_id.")
+        if return_http_response:
+            return HttpResponse("Invalid token payload: user_id missing", status_code=401)
+        return None
+    
+    return user_id
 

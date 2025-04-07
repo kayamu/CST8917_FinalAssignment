@@ -1,37 +1,46 @@
 import logging
 import requests
+import time
+import base64
+import urllib.parse
+import hmac
+import hashlib
 from config.azure_config import get_azure_config
 from azure_services.communication_service import CommunicationService
 
 class NotificationService:
     def __init__(self):
         config = get_azure_config()
+        self.namespace = config["NOTIFICATION_HUB_NAMESPACE"]
         self.hub_name = config["NOTIFICATION_HUB_NAME"]
         self.connection_string = config["NOTIFICATION_HUB_CONNECTION_STRING"]
-        self.endpoint = f"https://{self.hub_name}.servicebus.windows.net/{self.hub_name}/messages"
-        self.communication_service = CommunicationService()
+
+        # Yeni eklenen ayrıştırma kodu
+        parts = dict(item.split('=', 1) for item in self.connection_string.split(';'))
+        self.sas_key_name = parts['SharedAccessKeyName']
+        self.sas_key_value = parts['SharedAccessKey']
+
+        self.endpoint = f"https://{self.namespace}.servicebus.windows.net/{self.hub_name}/messages/?api-version=2015-01"
 
     def send_notification(self, message: str, device_id: str = None, values: list = None):
-        """
-        Send a notification to the Azure Notification Hub using REST API.
-        """
         try:
-            # Create the notification payload
             payload = {
-                "message": message,
+                "aps": {
+                    "alert": message,
+                    "sound": "default"
+                },
                 "deviceId": device_id,
-                "values": values
+                "message": message
             }
 
-            # Extract the SAS token from the connection string
             sas_token = self._generate_sas_token()
 
-            # Send the notification
             headers = {
                 "Authorization": sas_token,
-                "Content-Type": "application/json",
-                "ServiceBusNotification-Format": "template"
+                "Content-Type": "application/json;charset=utf-8",
+                "ServiceBusNotification-Format": "apple"
             }
+
             response = requests.post(self.endpoint, json=payload, headers=headers)
 
             if response.status_code == 201:
@@ -42,33 +51,28 @@ class NotificationService:
             logging.error(f"Failed to send notification to Notification Hub: {str(e)}")
 
     def _generate_sas_token(self):
-        """
-        Generate a Shared Access Signature (SAS) token for Notification Hub.
-        """
-        import urllib.parse
-        import hmac
-        import hashlib
-        import base64
-        from datetime import datetime, timedelta
+        target_uri = f"https://{self.namespace}.servicebus.windows.net/{self.hub_name}"
+        encoded_uri = urllib.parse.quote(target_uri.lower(), safe='')
+        expiry = str(self.get_expiry())
+        to_sign = f"{encoded_uri}\n{expiry}"
+        signature = urllib.parse.quote(self.sign_string(to_sign))
 
-        # Parse the connection string
-        parts = dict(item.split("=", 1) for item in self.connection_string.split(";"))
-        key_name = parts["SharedAccessKeyName"]
-        key_value = parts["SharedAccessKey"]
-        uri = urllib.parse.quote_plus(self.endpoint)
+        sas_token = f'SharedAccessSignature sig={signature}&se={expiry}&skn={self.sas_key_name}&sr={encoded_uri}'
+        return sas_token
 
-        # Set expiration time for the token
-        expiry = int((datetime.utcnow() + timedelta(hours=1)).timestamp())
+    @staticmethod
+    def get_expiry():
+        # Token geçerlilik süresi 5 dakika olarak ayarlandı (300 saniye).
+        return int(round(time.time() + 300))
 
-        # Create the string to sign
-        string_to_sign = f"{uri}\n{expiry}"
-        signed_hmac_sha256 = hmac.new(
-            base64.b64decode(key_value),
-            string_to_sign.encode("utf-8"),
-            hashlib.sha256
-        )
-        signature = base64.b64encode(signed_hmac_sha256.digest()).decode("utf-8")
+    @staticmethod
+    def encode_base64(data):
+        return base64.b64encode(data)
 
-        # Return the SAS token
-        return f"SharedAccessSignature sr={uri}&sig={urllib.parse.quote_plus(signature)}&se={expiry}&skn={key_name}"
-
+    def sign_string(self, to_sign):
+        key = self.sas_key_value.encode('utf-8')
+        to_sign = to_sign.encode('utf-8')
+        signed_hmac_sha256 = hmac.HMAC(key, to_sign, hashlib.sha256)
+        digest = signed_hmac_sha256.digest()
+        encoded_digest = self.encode_base64(digest)
+        return encoded_digest

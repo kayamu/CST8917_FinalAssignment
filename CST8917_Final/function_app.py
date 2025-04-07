@@ -3,9 +3,8 @@ import logging
 import azure.functions as func
 from functions import user_functions, device_functions, telemetry_functions, conditions, alertlogs
 from scheduled.trigger_functions import scheduled_cleanup
-from azure.servicebus import ServiceBusMessage
-from azure_services.servicebus_listener import ServiceBusListener
-from config.azure_config import get_azure_config
+from listeners.servicebus_listener import ServiceBusListener
+from functions import admin_functions
 
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
@@ -67,17 +66,6 @@ def TelemetryManagement(req: func.HttpRequest) -> func.HttpResponse:
     # Dispatch the request to the main function in telemetry_functions.py
     return telemetry_functions.main(req)
 
-@app.function_name(name="CreateAdminUser")
-@app.route(route="user/admin", methods=["POST"])
-def CreateAdminUser(req: func.HttpRequest) -> func.HttpResponse:
-    # Dispatch the request to the create_admin_user function in user_functions.py
-    return user_functions.create_admin_user(req)
-
-@app.function_name(name="GetUsers")
-@app.route(route="users", methods=["GET"])
-def GetUsers(req: func.HttpRequest) -> func.HttpResponse:
-    # Dispatch the request to the get_users function in user_functions.py
-    return user_functions.get_users(req)
 
 @app.function_name(name="ConditionsFunctions")
 @app.route(route="conditions", methods=["POST", "GET", "PUT", "DELETE"])
@@ -90,8 +78,7 @@ def AlertLogsManagement(req: func.HttpRequest) -> func.HttpResponse:
     """
     Dispatch the request to the main function in alertlogs.py.
     """
-    from functions.alertlogs import main
-    return main(req)
+    return alertlogs.main(req)
 
 @app.function_name(name="ScheduledCleanup")
 @app.schedule(schedule="0 0 0 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
@@ -124,3 +111,19 @@ def ServiceBusListenerFunction(msg: str):
         listener.main(message_body)
     except Exception as e:
         logging.exception(f"Failed to process Service Bus message: {str(e)}")
+
+
+@app.function_name(name="GetUsers")
+@app.route(route="manage/users", methods=["GET"])
+def GetUsers(req: func.HttpRequest) -> func.HttpResponse:
+    return admin_functions.get_users(req)
+
+@app.function_name(name="ChangeUserType")
+@app.route(route="manage/change-user-type", methods=["PUT"])
+def ChangeUserType(req: func.HttpRequest) -> func.HttpResponse:
+    return admin_functions.change_user_type(req)
+
+@app.function_name(name="CreateAdminUser")
+@app.route(route="manage/create-admin", methods=["POST"])
+def CreateAdminUser(req: func.HttpRequest) -> func.HttpResponse:
+    return admin_functions.create_admin_user(req)
