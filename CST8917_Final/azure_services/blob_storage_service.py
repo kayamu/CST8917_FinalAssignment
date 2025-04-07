@@ -1,8 +1,6 @@
 from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPermissions
-import uuid
 from datetime import datetime, timedelta
 from config.azure_config import get_azure_config
-from azure_services.cognitive_serivce import analyze_image_for_fire
 import logging
 
 class BlobStorageService:

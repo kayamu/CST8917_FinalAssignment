@@ -8,7 +8,9 @@ from azure_services.iot_hub_service import IoTHubService
 from azure_services.blob_storage_service import BlobStorageService
 from azure_services.notification_service import NotificationService
 from azure_services.communication_service import CommunicationService
+from azure_services.cognitive_serivce import analyze_image
 from config.jwt_utils import decode_token, authenticate_user, get_azure_config
+
 import base64  # Base64 encoding için gerekli
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
@@ -194,8 +196,8 @@ def process_image(image, device_id, user_id, telemetry_data):
         telemetry_data["image"] = image_url_with_sas
 
         # Analyze the image for fire detection
-        from azure_services.cognitive_serivce import analyze_image_for_fire
-        fire_detection_result = analyze_image_for_fire(image_url_with_sas)
+
+        fire_detection_result = analyze_image(image_url_with_sas)
         telemetry_data["fire_detection_result"] = fire_detection_result
 
         logging.info(f"Image processed successfully. Fire detection result: {fire_detection_result}")
