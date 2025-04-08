@@ -1226,6 +1226,110 @@ paths:
         '500':
           description: Internal server error
 
+  /manage/processed-images:
+    get:
+      summary: List processed images (Admin only)
+      tags:
+        - Admin
+      description: Lists all files and directories in the processed-images blob container. Only accessible by admin users.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: prefix
+          in: query
+          description: Optional path prefix for listing files in a specific directory
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Files and directories retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  files:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          description: Full path and name of the file
+                        size:
+                          type: integer
+                          description: Size of the file in bytes
+                        last_modified:
+                          type: string
+                          format: date-time
+                          description: Last modified date of the file
+                        content_type:
+                          type: string
+                          description: MIME type of the file
+                  directories:
+                    type: array
+                    items:
+                      type: string
+                      description: List of directory paths
+        '401':
+          description: Unauthorized (missing or invalid token)
+        '403':
+          description: Forbidden (only admins can access this endpoint)
+        '500':
+          description: Internal server error
+
+  /manage/transfer-device:
+    post:
+      summary: Transfer device between users (Admin only)
+      tags:
+        - Admin
+      description: Transfers a device from one user to another. Only accessible by admin users.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: ID of the device to transfer
+        - name: newUserId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: ID of the user to receive the device
+      responses:
+        '200':
+          description: Device transferred successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Success message
+                  deviceId:
+                    type: string
+                    description: ID of the transferred device
+                  oldUserId:
+                    type: string
+                    description: ID of the previous device owner
+                  newUserId:
+                    type: string
+                    description: ID of the new device owner
+        '400':
+          description: Missing required parameters
+        '401':
+          description: Unauthorized (JWT token missing or invalid)
+        '403':
+          description: Forbidden (only admins can access this endpoint)
+        '404':
+          description: Device or user not found
+        '500':
+          description: Internal server error
 
 components:
   securitySchemes:

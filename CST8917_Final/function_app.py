@@ -135,6 +135,15 @@ def ChangeUserType(req: func.HttpRequest) -> func.HttpResponse:
 def CreateAdminUser(req: func.HttpRequest) -> func.HttpResponse:
     return admin_functions.create_admin_user(req)
 
+@app.function_name(name="ListProcessedImages")
+@app.route(route="manage/processed-images", methods=["GET"])
+def ListProcessedImages(req: func.HttpRequest) -> func.HttpResponse:
+    return admin_functions.list_processed_images(req)
+
+@app.function_name(name="TransferDevice")
+@app.route(route="manage/transfer-device", methods=["POST"])
+def TransferDevice(req: func.HttpRequest) -> func.HttpResponse:
+    return admin_functions.transfer_device(req)
 
 @app.function_name(name="BlobTriggerListener")
 @app.blob_trigger(

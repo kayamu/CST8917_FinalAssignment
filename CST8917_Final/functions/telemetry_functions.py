@@ -69,12 +69,15 @@ def post_telemetry(req: func.HttpRequest) -> func.HttpResponse:
             status_code=404, 
             mimetype="application/json"
         )
+   
+    event_id = str(uuid.uuid4())  # Generate a unique event ID
+    
 
     # Generate telemetry data structure
     telemetry_data = {
         "deviceId": device_id,
         "userId": user["_id"],  # User ID from the database
-        "eventId": str(uuid.uuid4()),  # Generate a unique event ID
+        "eventId": event_id,  # Generate a unique event ID
         "event_date": event_date,  # Correctly formatted event_date
         "values": values,  # List of key-value pairs
     }
@@ -91,7 +94,7 @@ def post_telemetry(req: func.HttpRequest) -> func.HttpResponse:
         # Process the image if provided
         if image:
             try:
-                process_image(image, device_id, user["_id"], telemetry_data)
+                process_image(image, device_id, event_id, telemetry_data)
 
             except Exception as e:
                 logging.error(f"Failed to process the image: {str(e)}")
@@ -112,7 +115,7 @@ def post_telemetry(req: func.HttpRequest) -> func.HttpResponse:
 
 
 
-def process_image(image, device_id, user_id, telemetry_data):
+def process_image(image, device_id, event_id, telemetry_data):
     """
     Processes the uploaded image: uploads it to Blob Storage, generates a SAS token,
     analyzes it for fire detection, and updates the telemetry data with the results.
@@ -131,7 +134,7 @@ def process_image(image, device_id, user_id, telemetry_data):
         blob_service = BlobStorageService()
         file_extension = image.filename.split(".")[-1]
         event_date = telemetry_data["event_date"]
-        blob_filename = f"{event_date.replace(':', '').replace('-', '').replace('.', '')}_{device_id}.{file_extension}"
+        blob_filename = f"{event_date.replace(':', '').replace('-', '').replace('.', '')}_{event_id}_{device_id}.{file_extension}"
         blob_service.upload_image(image.read(), blob_filename)
 
         return blob_filename

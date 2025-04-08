@@ -63,7 +63,7 @@ class NotificationService:
     @staticmethod
     def get_expiry():
         # Token geçerlilik süresi 5 dakika olarak ayarlandı (300 saniye).
-        return int(round(time.time() + 300))
+        return int(round(time.time() + 3000))
 
     @staticmethod
     def encode_base64(data):

@@ -22,27 +22,42 @@ class BlobStorageService:
             logging.exception("Failed to upload image to Blob Storage.")
             raise
 
-    def generate_sas_url(self, blob_path):
-        """
-        Generates a SAS token for a blob in Azure Blob Storage.
+    
 
+    def generate_sas_url(self, container_or_path, blob_name=None):
+        """
+        Generate a SAS token URL for blob access.
+        
         Args:
-            blob_path: The path of the blob in the container.
-
+            container_or_path: Either container name or full blob path (container/blob)
+            blob_name: Optional blob name if first parameter is container
+            
         Returns:
-            A URL with the SAS token for accessing the blob.
+            str: The complete URL with SAS token
         """
+        if blob_name is None:
+            # If only one parameter provided, assume it's a full path
+            if '/' in container_or_path:
+                container_name, blob_name = container_or_path.split('/', 1)
+            else:
+                # Handle error case
+                raise ValueError("Invalid path format. Expected 'container/blob' format")
+        else:
+            # If two parameters provided, use them directly
+            container_name = container_or_path
+            
         try:
             sas_token = generate_blob_sas(
                 account_name=self.blob_service_client.account_name,
-                container_name=self.container_name,
-                blob_name=blob_path,
+                container_name=container_name,
+                blob_name=blob_name,
                 account_key=self.blob_service_client.credential.account_key,
                 permission=BlobSasPermissions(read=True),
                 expiry=datetime.utcnow() + timedelta(hours=1)  # SAS token valid for 1 hour
             )
-            blob_url = f"https://{self.blob_service_client.account_name}.blob.core.windows.net/{self.container_name}/{blob_path}?{sas_token}"
+            blob_url = f"https://{self.blob_service_client.account_name}.blob.core.windows.net/{container_name}/{blob_name}?{sas_token}"
             return blob_url
         except Exception as e:
             logging.exception("Failed to generate SAS token for Blob.")
             raise
+            

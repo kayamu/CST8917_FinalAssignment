@@ -179,7 +179,7 @@ class ServiceBusListener:
         for method in methods:
             if method == "Notification":
                 logging.info(f"Sending notification: {message}")
-                notification_service.send_notification(message, device_id, values)
+            #    notification_service.send_notification(message, device_id, values)
 
             elif method == "Email":
                 if user and "email" in user:
