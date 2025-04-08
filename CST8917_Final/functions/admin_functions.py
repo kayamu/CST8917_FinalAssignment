@@ -127,6 +127,14 @@ def create_admin_user(req: func.HttpRequest) -> func.HttpResponse:
 def list_processed_images(req: func.HttpRequest) -> func.HttpResponse:
     """
     Lists all files and directories in the processed-images blob container.
+    Can also find a specific image and return its URL with SAS token.
+    
+    Query parameters:
+    - prefix: Optional path prefix for listing files in a specific directory
+    - imageName: Image filename to search for
+    - imageUrl: Optional URL path to narrow the search or direct image URL
+    - deviceId: Optional device ID to narrow the search
+    
     Requires admin authentication.
     """
     logging.info("Processing list_processed_images request.")
@@ -162,12 +170,252 @@ def list_processed_images(req: func.HttpRequest) -> func.HttpResponse:
     # Optional path prefix for listing files in a specific directory
     prefix = req.params.get('prefix', '')
     
+    # Check if we're searching for a specific image
+    image_name = req.params.get('imageName')
+    image_url = req.params.get('imageUrl')
+    device_id = req.params.get('deviceId')
+    
     try:
         # Create blob service client
         blob_service_client = BlobServiceClient.from_connection_string(connection_string)
         container_client = blob_service_client.get_container_client(container_name)
+        from azure_services.blob_storage_service import BlobStorageService
+        blob_service = BlobStorageService()
         
-        # List blobs with the specified prefix
+        # Case A: If only imageUrl is provided (complete path to a specific file)
+        if image_url and not image_name and not device_id:
+            blob_path = None
+            # Check if it points to a specific file (not just a folder)
+            if image_url.startswith('http'):
+                # Format: https://account.blob.core.windows.net/container/path/to/file.jpeg
+                path_parts = image_url.split('/', 3)
+                if len(path_parts) >= 4:
+                    _, _, domain, path = path_parts
+                    if domain.split('.')[0] != blob_service_client.account_name:
+                        return func.HttpResponse(
+                            json.dumps({"message": "The provided URL doesn't match the storage account"}),
+                            status_code=400,
+                            mimetype="application/json"
+                        )
+                    
+                    container_path = path.split('/', 1)
+                    if len(container_path) >= 2 and container_path[0] == container_name:
+                        blob_path = container_path[1]
+                        
+                        # Check if this appears to point to a specific file (contains dot for extension)
+                        if '.' in blob_path.split('/')[-1]:
+                            blob_client = container_client.get_blob_client(blob_path)
+                            
+                            # If the blob exists, generate SAS URL
+                            if blob_client.exists():
+                                sas_url = blob_service.generate_sas_url(container_name, blob_path)
+                                # Create the raw image URL without SAS token
+                                raw_image_url = f"https://{blob_service_client.account_name}.blob.core.windows.net/{container_name}/{blob_path}"
+                                # Extract filename from the blob path
+                                image_name = blob_path.split('/')[-1]
+                                # Extract device ID if present in the path
+                                device_id = blob_path.split('/')[0] if '/' in blob_path else None
+                                
+                                return func.HttpResponse(
+                                    json.dumps({
+                                        "message": "Image found",
+                                        "imageUrl": raw_image_url,
+                                        "imageUrlWithSas": sas_url,
+                                        "imageName": image_name,
+                                        "deviceId": device_id
+                                    }),
+                                    status_code=200,
+                                    mimetype="application/json"
+                                )
+                            else:
+                                return func.HttpResponse(
+                                    json.dumps({"message": f"Image not found at path: {blob_path}"}),
+                                    status_code=404,
+                                    mimetype="application/json"
+                                )
+        
+        # Case B: If imageName parameter exists, we need to find a specific image
+        if image_name:
+            # Case B1: imageUrl is provided (URL path to narrow down the search)
+            if image_url:
+                search_folder = ""
+                # Extract the folder structure from the URL
+                if image_url.startswith('http'):
+                    # Format: https://account.blob.core.windows.net/container/path/to/folder/
+                    path_parts = image_url.split('/', 3)
+                    if len(path_parts) >= 4:
+                        _, _, domain, path = path_parts
+                        if domain.split('.')[0] != blob_service_client.account_name:
+                            return func.HttpResponse(
+                                json.dumps({"message": "The provided URL doesn't match the storage account"}),
+                                status_code=400,
+                                mimetype="application/json"
+                            )
+                        
+                        container_path = path.split('/', 1)
+                        if len(container_path) >= 2 and container_path[0] == container_name:
+                            search_folder = container_path[1]
+                            # Make sure the folder path ends with a '/' for proper path concatenation
+                            if not search_folder.endswith('/') and search_folder:
+                                search_folder += '/'
+                
+                # Now search for the image name within the specified folder
+                found_blob = None
+                blobs = container_client.list_blobs(name_starts_with=search_folder)
+                
+                for blob in blobs:
+                    blob_name = blob["name"]
+                    # Check if the blob name contains the image name at the end of the path
+                    if blob_name.endswith(image_name):
+                        found_blob = blob_name
+                        break
+                
+                if found_blob:
+                    # Generate SAS URL for the blob
+                    sas_url = blob_service.generate_sas_url(container_name, found_blob)
+                    # Create the raw image URL without SAS token
+                    raw_image_url = f"https://{blob_service_client.account_name}.blob.core.windows.net/{container_name}/{found_blob}"
+                    # Extract filename from the blob path
+                    image_name = found_blob.split('/')[-1]
+                    # Extract device ID if present in the path
+                    device_id = found_blob.split('/')[0] if '/' in found_blob else None
+                    
+                    return func.HttpResponse(
+                        json.dumps({
+                            "message": "Image found",
+                            "imageUrl": raw_image_url,
+                            "imageUrlWithSas": sas_url,
+                            "imageName": image_name,
+                            "deviceId": device_id
+                        }),
+                        status_code=200,
+                        mimetype="application/json"
+                    )
+                else:
+                    # Image not found in the specified path
+                    return func.HttpResponse(
+                        json.dumps({"message": f"Image {image_name} not found in the specified path"}),
+                        status_code=404,
+                        mimetype="application/json"
+                    )
+            
+            # Case B2: deviceId is provided and imageUrl is not provided
+            elif device_id:
+                # Check if image exists in the device's folder
+                blob_path = f"{device_id}/{image_name}"
+                blob_client = container_client.get_blob_client(blob_path)
+                
+                if blob_client.exists():
+                    # Generate SAS URL for the blob
+                    sas_url = blob_service.generate_sas_url(container_name, blob_path)
+                    # Create the raw image URL without SAS token
+                    raw_image_url = f"https://{blob_service_client.account_name}.blob.core.windows.net/{container_name}/{blob_path}"
+                    
+                    return func.HttpResponse(
+                        json.dumps({
+                            "message": "Image found",
+                            "imageUrl": raw_image_url,
+                            "imageUrlWithSas": sas_url,
+                            "imageName": image_name,
+                            "deviceId": device_id
+                        }),
+                        status_code=200,
+                        mimetype="application/json"
+                    )
+                else:
+                    return func.HttpResponse(
+                        json.dumps({"message": f"Image {image_name} not found in device folder {device_id}"}),
+                        status_code=404,
+                        mimetype="application/json"
+                    )
+            
+            # Case B3: Only imageName is provided, search everywhere
+            else:
+                found_blob = None
+                # List all blobs in the container
+                blobs = container_client.list_blobs()
+                
+                for blob in blobs:
+                    blob_name = blob["name"]
+                    # Check if the blob path ends with the image name
+                    if blob_name.endswith(image_name):
+                        found_blob = blob_name
+                        break
+                
+                if found_blob:
+                    # Generate SAS URL for the blob
+                    sas_url = blob_service.generate_sas_url(container_name, found_blob)
+                    # Create the raw image URL without SAS token
+                    raw_image_url = f"https://{blob_service_client.account_name}.blob.core.windows.net/{container_name}/{found_blob}"
+                    # Extract filename from the blob path
+                    image_name = found_blob.split('/')[-1]
+                    # Extract device ID if present in the path
+                    device_id = found_blob.split('/')[0] if '/' in found_blob else None
+                    
+                    return func.HttpResponse(
+                        json.dumps({
+                            "message": "Image found",
+                            "imageUrl": raw_image_url,
+                            "imageUrlWithSas": sas_url,
+                            "imageName": image_name,
+                            "deviceId": device_id
+                        }),
+                        status_code=200,
+                        mimetype="application/json"
+                    )
+                
+                # If we get here, the image wasn't found
+                return func.HttpResponse(
+                    json.dumps({"message": f"Image {image_name} not found in any folder"}),
+                    status_code=404,
+                    mimetype="application/json"
+                )
+        
+        # Case C: If deviceId and imageUrl are both provided without imageName,
+        # verify that the deviceId matches the folder structure in imageUrl
+        elif device_id and image_url:
+            # Extract the folder structure from the URL
+            folder_path = ""
+            if image_url.startswith('http'):
+                path_parts = image_url.split('/', 3)
+                if len(path_parts) >= 4:
+                    _, _, domain, path = path_parts
+                    container_path = path.split('/', 1)
+                    if len(container_path) >= 2:
+                        folder_path = container_path[1]
+            
+            # Check if the folder path contains the deviceId
+            if folder_path.startswith(device_id) or device_id in folder_path.split('/'):
+                # List all blobs in the device's folder
+                blobs = container_client.list_blobs(name_starts_with=device_id)
+                
+                file_list = []
+                for blob in blobs:
+                    blob_name = blob["name"]
+                    file_info = {
+                        "name": blob_name,
+                        "size": blob["size"],
+                        "last_modified": blob["last_modified"].isoformat() if "last_modified" in blob else None,
+                        "content_type": blob.get("content_settings", {}).get("content_type", "application/octet-stream")
+                    }
+                    file_list.append(file_info)
+                
+                return func.HttpResponse(
+                    json.dumps({
+                        "message": "Device folder found",
+                        "files": file_list
+                    }),
+                    status_code=200,
+                    mimetype="application/json"
+                )
+            else:
+                return func.HttpResponse(
+                    json.dumps({"message": f"The device ID {device_id} doesn't match the folder structure in the URL"}),
+                    status_code=404,
+                    mimetype="application/json"
+                )
+        
+        # If no image search parameters provided, proceed with listing all blobs (original functionality)
         blobs = container_client.list_blobs(name_starts_with=prefix)
         
         # Extract file and directory information
@@ -205,9 +453,9 @@ def list_processed_images(req: func.HttpRequest) -> func.HttpResponse:
         )
         
     except Exception as e:
-        logging.exception(f"Error listing blobs from container: {container_name}")
+        logging.exception(f"Error accessing blobs from container: {container_name}")
         return func.HttpResponse(
-            json.dumps({"message": f"Error listing blobs: {str(e)}"}),
+            json.dumps({"message": f"Error accessing blobs: {str(e)}"}),
             status_code=500,
             mimetype="application/json"
         )
@@ -356,4 +604,3 @@ def transfer_device(req: func.HttpRequest) -> func.HttpResponse:
             status_code=500, 
             mimetype="application/json"
         )
-

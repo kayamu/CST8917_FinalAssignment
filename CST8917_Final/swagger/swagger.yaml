@@ -1228,10 +1228,10 @@ paths:
 
   /manage/processed-images:
     get:
-      summary: List processed images (Admin only)
+      summary: List processed images or find specific image (Admin only)
       tags:
         - Admin
-      description: Lists all files and directories in the processed-images blob container. Only accessible by admin users.
+      description: Lists all files and directories in the processed-images blob container or finds a specific image and returns its URL with SAS token. Only accessible by admin users.
       security:
         - bearerAuth: []
       parameters:
@@ -1241,41 +1241,74 @@ paths:
           required: false
           schema:
             type: string
+        - name: imageName
+          in: query
+          description: Image filename to search for across all directories or within a specific directory
+          required: false
+          schema:
+            type: string
+          example: "20250408T202259271867+0000_d48750d8-f067-4ac6-bdbc-2a8d6d22a12c_4202.jpeg"
+        - name: imageUrl
+          in: query
+          description: Optional URL path or folder structure to narrow the image search
+          required: false
+          schema:
+            type: string
+          example: "https://cst8917finalstgacc.blob.core.windows.net/processed-images/4202/"
+        - name: deviceId
+          in: query
+          description: Optional device ID to narrow the search when looking for an image
+          required: false
+          schema:
+            type: string
       responses:
         '200':
-          description: Files and directories retrieved successfully
+          description: Files and directories retrieved successfully, or specific image found
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  files:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        name:
+                oneOf:
+                  - type: object
+                    properties:
+                      files:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                              description: Full path and name of the file
+                            size:
+                              type: integer
+                              description: Size of the file in bytes
+                            last_modified:
+                              type: string
+                              format: date-time
+                              description: Last modified date of the file
+                            content_type:
+                              type: string
+                              description: MIME type of the file
+                      directories:
+                        type: array
+                        items:
                           type: string
-                          description: Full path and name of the file
-                        size:
-                          type: integer
-                          description: Size of the file in bytes
-                        last_modified:
-                          type: string
-                          format: date-time
-                          description: Last modified date of the file
-                        content_type:
-                          type: string
-                          description: MIME type of the file
-                  directories:
-                    type: array
-                    items:
-                      type: string
-                      description: List of directory paths
+                          description: List of directory paths
+                  - type: object
+                    properties:
+                      message:
+                        type: string
+                        description: Status message
+                        example: "Image found"
+                      imageUrl:
+                        type: string
+                        description: URL with SAS token for accessing the image
+                        example: "https://cst8917finalstgacc.blob.core.windows.net/processed-images/4202/20250408T202259271867+0000_d48750d8-f067-4ac6-bdbc-2a8d6d22a12c_4202.jpeg?sv=2023-01-03&ss=b&srt=o&sp=r&se=2025-04-08T18%3A00%3A00Z&st=2025-04-08T17%3A00%3A00Z&spr=https&sig=XXXXX"
         '401':
           description: Unauthorized (missing or invalid token)
         '403':
           description: Forbidden (only admins can access this endpoint)
+        '404':
+          description: Image not found (when searching for a specific image)
         '500':
           description: Internal server error
 
