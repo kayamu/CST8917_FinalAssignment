@@ -1247,14 +1247,12 @@ paths:
           required: false
           schema:
             type: string
-          example: "20250408T202259271867+0000_d48750d8-f067-4ac6-bdbc-2a8d6d22a12c_4202.jpeg"
         - name: imageUrl
           in: query
           description: Optional URL path or folder structure to narrow the image search
           required: false
           schema:
             type: string
-          example: "https://cst8917finalstgacc.blob.core.windows.net/processed-images/4202/"
         - name: deviceId
           in: query
           description: Optional device ID to narrow the search when looking for an image
