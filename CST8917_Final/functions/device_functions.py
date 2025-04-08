@@ -89,6 +89,8 @@ def register_device(req: func.HttpRequest) -> func.HttpResponse:
             status_code=404, 
             mimetype="application/json"
         )
+
+
     
     # Prepare the device object
     device_object = {
@@ -180,6 +182,7 @@ def get_devices(req: func.HttpRequest) -> func.HttpResponse:
         "count": len(filtered_devices),
         "userId": user_id,
         "filters": {
+            "deviceId": device_id,
             "deviceName": device_name,
             "sensorType": sensor_type,
             "location": location

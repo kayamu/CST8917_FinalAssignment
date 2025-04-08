@@ -89,6 +89,8 @@ def post_telemetry(req: func.HttpRequest) -> func.HttpResponse:
             logging.exception("Failed to upload image to Blob Storage or analyze it.")
             return func.HttpResponse(f"Failed to process image: {str(e)}", status_code=500)
 
+
+
     # Send telemetry data to Service Bus Queue
     try:
         from azure_services.servicebus_service import ServiceBusService

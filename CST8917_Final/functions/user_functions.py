@@ -115,10 +115,27 @@ def create_user(req: func.HttpRequest, user_type: str = "user") -> func.HttpResp
     insert_result = cosmos_service.insert_document(user_doc)
     
     
-    response_body = {"message": f"{user_type.capitalize()} created successfully", "token": token}
+    response_body = {"message": f"{user_type.capitalize()} created successfully", "token": token, "server_response": insert_result}
     return func.HttpResponse(json.dumps(response_body), status_code=201, mimetype="application/json")
 
 
+def get_user_info(user_id: str):
+    """
+    Helper function to retrieve user information from CosmosDB.
+    """
+    cosmos_service = CosmosDBService()
+    user = cosmos_service.find_document({"_id": user_id})
+    if not user:
+        return func.HttpResponse(
+            json.dumps({"message": "User not found"}), 
+            status_code=404, 
+            mimetype="application/json"
+        )
+    # Remove sensitive information before returning
+    user.pop("password", None)
+    user["_id"] = str(user["_id"])
+    return user
+    
 def get_user(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Processing get_user request.")
     
@@ -127,17 +144,16 @@ def get_user(req: func.HttpRequest) -> func.HttpResponse:
     if isinstance(user_id, func.HttpResponse):  # If validation failed, return the error response
         return user_id
     
-    cosmos_service = CosmosDBService()
+    user = get_user_info(user_id)
+
     try:
-        user = cosmos_service.find_document({"_id": user_id})
+        user = get_user_info(user_id)
         if not user:
             return func.HttpResponse(
                 json.dumps({"message": "User not found"}), 
                 status_code=404, 
                 mimetype="application/json"
             )
-        user.pop("password", None)
-        user["_id"] = str(user["_id"])
         return func.HttpResponse(json.dumps(user), status_code=200, mimetype="application/json")
     except Exception as e:
         logging.exception(f"Error while querying CosmosDB for user_id: {user_id}")
@@ -156,19 +172,29 @@ def update_user_put(req: func.HttpRequest) -> func.HttpResponse:
     except ValueError:
         req_body = {}
 
-    # Support both query parameters and JSON body
-    target_user_id = req_body.get("userId") or req.params.get("userId", logged_in_user_id)
-    
-    # Check if updateData exists, otherwise use the entire req_body as update data
-    if "updateData" in req_body:
-        update_data = req_body["updateData"]
-    else:
-        # Remove userId if present to avoid conflicts
-        if "userId" in req_body:
-            del req_body["userId"]
-        update_data = req_body if req_body else {"type": req.params.get("userType")}
+    # Ensure the request body is a dictionary
+    if not isinstance(req_body, dict):
+        return func.HttpResponse(
+            json.dumps({"message": "Invalid request body format"}), 
+            status_code=400, 
+            mimetype="application/json"
+        )
 
-    if not update_data:
+    admin_user = False
+    user = get_user_info(logged_in_user_id)
+    
+    if user["userType"] == "admin":
+        admin_user = True
+
+
+    # Support both query parameters and JSON body
+    target_user_id = req_body.get("userId") or req.params.get("userId", user["_id"])
+    
+    # Remove userId if present to avoid conflicts
+    if "userId" in req_body:
+         del req_body["userId"]
+
+    if not req_body:
         return func.HttpResponse(
             json.dumps({"message": "Missing update data"}), 
             status_code=400, 
@@ -178,11 +204,10 @@ def update_user_put(req: func.HttpRequest) -> func.HttpResponse:
     cosmos_service = CosmosDBService()
     try:
         # Check if the logged-in user is an admin
-        admin_user = cosmos_service.find_document({"_id": logged_in_user_id, "type": "admin"})
         if not admin_user and target_user_id != logged_in_user_id:
             return func.HttpResponse("Access denied: Cannot update other users", status_code=403)
         
-        result = cosmos_service.update_document({"_id": target_user_id}, {"$set": update_data})
+        result = cosmos_service.update_document({"_id": target_user_id}, {"$set": req_body})
 
     except Exception as e:
         logging.error(f"Error while updating user: {str(e)}")
@@ -253,24 +278,23 @@ def delete_user(req: func.HttpRequest) -> func.HttpResponse:
     except ValueError:
         req_body = {}
 
+    admin_user = False
+    user = get_user_info(logged_in_user_id)
+    
+    if user["userType"] == "admin":
+        admin_user = True
+
+
     # Support both query parameters and JSON body
-    target_user_id = req_body.get("userId") or req.params.get("userId", logged_in_user_id)
+    target_user_id = req_body.get("userId") or req.params.get("userId", user["_id"])
 
     cosmos_service = CosmosDBService()
     try:
-        # Check if the logged-in user is an admin
-        admin_user = cosmos_service.find_document({"_id": logged_in_user_id, "type": "admin"})
         if not admin_user and target_user_id != logged_in_user_id:
             return func.HttpResponse("Access denied: Cannot delete other users", status_code=403)
         
         # Get the user document to find associated devices
-        user_document = cosmos_service.find_document({"_id": target_user_id})
-        if not user_document:
-            return func.HttpResponse(
-                json.dumps({"message": "User not found"}), 
-                status_code=404, 
-                mimetype="application/json"
-            )
+        user_document = get_user_info(target_user_id)
         
         # Extract all device IDs from the user document
         devices = user_document.get("Devices", [])
@@ -308,6 +332,7 @@ def delete_user(req: func.HttpRequest) -> func.HttpResponse:
         status_code=200, 
         mimetype="application/json"
     )
+
 
 def login_user(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Processing login_user request.")

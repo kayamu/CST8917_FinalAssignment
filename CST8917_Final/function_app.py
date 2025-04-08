@@ -2,10 +2,18 @@ import os
 import logging
 import azure.functions as func
 from functions import user_functions, device_functions, telemetry_functions, conditions, alertlogs
+from azure_services.cognitive_serivce import analyze_image
 from scheduled.trigger_functions import scheduled_cleanup
 from listeners.servicebus_listener import ServiceBusListener
 from functions import admin_functions
+from listeners.blobstorage_listener import BlobListener
+import asyncio
 
+
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
@@ -127,3 +135,22 @@ def ChangeUserType(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="manage/create-admin", methods=["POST"])
 def CreateAdminUser(req: func.HttpRequest) -> func.HttpResponse:
     return admin_functions.create_admin_user(req)
+
+
+@app.function_name(name="BlobTriggerListener")
+@app.blob_trigger(
+    arg_name="blob",
+    path="telemetry-images",
+    connection="AzureWebJobsStorage"
+)
+def BlobTriggerListener(blob: func.InputStream, name: str):
+    """
+    Azure Function triggered by a new blob in the specified container.
+    """
+    logger.info(f"Blob Trigger Function triggered for blob: {name}")
+    try:
+        # Use the BlobListener class to process the blob
+        listener = BlobListener()
+        listener.process_blob(blob, name)
+    except Exception as e:
+        logger.exception(f"Failed to process blob {name}: {str(e)}")
