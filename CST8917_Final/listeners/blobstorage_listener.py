@@ -352,7 +352,7 @@ class BlobListener:
                 "Devices.telemetryData.eventId": search_event_id
             }
             
-            processed_blob_path = f"{self.processed_container}/{device_id}/{blob_name}"
+            processed_blob_path = f"https://{self.storage_account_name}.blob.core.windows.net/{self.processed_container}/{device_id}/{blob_name}"
 
             # Find the document containing the event_id
             user = cosmos_service.find_document(query)
