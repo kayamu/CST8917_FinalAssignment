@@ -8,6 +8,7 @@ bcrypt
 PyJWT
 requests
 Pillow
+aiohttp
 azure-storage-blob
 azure-servicebus
 azure-communication-email

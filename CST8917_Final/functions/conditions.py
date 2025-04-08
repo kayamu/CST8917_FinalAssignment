@@ -250,12 +250,14 @@ def put_condition(req_body, user_id):
 
 def delete_condition(req_body, user_id):
     """
-    Delete a condition.
+    Delete a condition. Admin users can delete any condition,
+    while regular users can only delete their own conditions or global conditions.
     """
     logging.info("Starting condition deletion process.")
     cosmos_service = CosmosDBService()
     config = get_azure_config()
-    collection_name = config["CONDITION_COLLECTION_NAME"]  # Get the Conditions collection name
+    collection_name = config["CONDITION_COLLECTION_NAME"]
+    user_collection_name = config["COLLECTION_NAME"]
 
     # Validate the request body
     condition_id = req_body.get("conditionId")
@@ -265,25 +267,60 @@ def delete_condition(req_body, user_id):
 
     logging.info(f"Deleting condition with conditionId={condition_id}.")
 
+    # Check if user is admin
+    try:
+        user = cosmos_service.find_document({"userId": user_id}, user_collection_name)
+        is_admin = user and user.get("userType") == "admin"
+        logging.info(f"User {user_id} is admin: {is_admin}")
+    except Exception as e:
+        logging.error(f"Error retrieving user info: {str(e)}")
+        is_admin = False
+
     # Build the query to find the condition
     try:
-        query = {"_id": ObjectId(condition_id), "type": "condition", "userId": user_id}
+        # First check if the condition exists
+        find_query = {"_id": ObjectId(condition_id), "type": "condition"}
+        condition = cosmos_service.find_document(find_query, collection_name)
+        
+        if not condition:
+            logging.warning(f"No condition found with conditionId={condition_id}.")
+            return {"message": "Condition not found"}, 404
+            
+        # Access control check
+        condition_user_id = condition.get("userId", "")
+        if not is_admin and condition_user_id and condition_user_id != user_id:
+            logging.error(f"User {user_id} not authorized to delete condition {condition_id}.")
+            return {"error": "Not authorized to delete this condition"}, 403
+            
+        # Build the deletion query
+        # For regular users: match by ID, type, and either userId=user_id or userId="" (global conditions)
+        # For admin users: match only by ID and type (can delete any condition)
+        if is_admin:
+            delete_query = {"_id": ObjectId(condition_id), "type": "condition"}
+        else:
+            # Non-admin users can delete their own conditions or global conditions (empty userId)
+            delete_query = {
+                "_id": ObjectId(condition_id), 
+                "type": "condition",
+                "$or": [{"userId": user_id}, {"userId": ""}]
+            }
+            
     except Exception as e:
         logging.error(f"Invalid conditionId format: {str(e)}")
         return {"error": "Invalid conditionId format"}, 400
 
-    logging.info(f"Query to delete the condition: {query}")
+    logging.info(f"Query to delete the condition: {delete_query}")
 
     try:
         # Perform the deletion
-        result = cosmos_service.delete_document(query, collection_name)
+        result = cosmos_service.delete_document(delete_query, collection_name)
         logging.debug(f"Delete result: {result.raw_result}")
         if result.deleted_count > 0:
             logging.info(f"Condition with conditionId={condition_id} deleted successfully.")
             return {"message": "Condition deleted successfully"}, 200
         else:
-            logging.warning(f"No condition found with conditionId={condition_id}.")
-            return {"message": "Condition not found"}, 404
+            logging.warning(f"No condition found with conditionId={condition_id} that user is authorized to delete.")
+            return {"message": "Condition not found or not authorized to delete"}, 404
     except Exception as e:
         logging.error(f"Error while deleting condition: {str(e)}")
         return {"error": "Failed to delete condition"}, 500

@@ -2,7 +2,6 @@ import os
 import logging
 import azure.functions as func
 from functions import user_functions, device_functions, telemetry_functions, conditions, alertlogs
-from azure_services.cognitive_serivce import analyze_image
 from scheduled.trigger_functions import scheduled_cleanup
 from listeners.servicebus_listener import ServiceBusListener
 from functions import admin_functions
@@ -139,18 +138,18 @@ def CreateAdminUser(req: func.HttpRequest) -> func.HttpResponse:
 
 @app.function_name(name="BlobTriggerListener")
 @app.blob_trigger(
-    arg_name="blob",
-    path="telemetry-images",
+    arg_name="myblob",
+    path="telemetry-images/{name}",
     connection="AzureWebJobsStorage"
 )
-def BlobTriggerListener(blob: func.InputStream, name: str):
+async def BlobTriggerListener(myblob: func.InputStream):
     """
     Azure Function triggered by a new blob in the specified container.
     """
-    logger.info(f"Blob Trigger Function triggered for blob: {name}")
+    blob_name = myblob.name.split('/')[-1]  # Extract the filename
+    logger.info(f"Blob Trigger Function triggered for blob: {blob_name}")
     try:
-        # Use the BlobListener class to process the blob
         listener = BlobListener()
-        listener.process_blob(blob, name)
+        await listener.process_blob(myblob, blob_name)
     except Exception as e:
-        logger.exception(f"Failed to process blob {name}: {str(e)}")
+        logger.exception(f"Failed to process blob {blob_name}: {str(e)}")
