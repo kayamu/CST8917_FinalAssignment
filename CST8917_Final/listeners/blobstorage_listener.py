@@ -1,5 +1,6 @@
 import re
 import logging
+import asyncio
 import time
 import urllib.parse
 from azure_services.cognitive_service import CognitiveServices

@@ -576,6 +576,7 @@ paths:
           description: Unique identifier for the telemetry event
         - name: deviceId
           in: query
+          required: true
           schema:
             type: string
           description: Unique identifier for the device
@@ -590,35 +591,7 @@ paths:
             type: string
             format: date-time
           description: Specific date of the telemetry event
-        - name: startDate
-          in: query
-          schema:
-            type: string
-            format: date-time
-          description: Start date for the telemetry data range
-        - name: endDate
-          in: query
-          schema:
-            type: string
-            format: date-time
-          description: End date for the telemetry data range
-        - name: values
-          in: query
-          schema:
-            type: array
-            items:
-              type: object
-              properties:
-                valueType:
-                  type: string
-                  description: Type of the value (e.g., Temperature, Humidity)
-                minValue:
-                  type: number
-                  description: Minimum value for the range
-                maxValue:
-                  type: number
-                  description: Maximum value for the range
-          description: Filters for telemetry values
+
       responses:
         '200':
           description: Telemetry data retrieved successfully
@@ -628,6 +601,7 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Telemetry'
+
         '400':
           description: Invalid query parameters
         '401':
@@ -909,6 +883,23 @@ paths:
                 unit:
                   type: string
                   description: Updated unit of the value (optional)
+                scope:
+                  type: string
+                  enum:
+                    - general
+                    - user
+                    - device
+                  description: Updated scope of the condition (optional)
+                notificationMethods:
+                  type: array
+                  items:
+                    type: string
+                    enum:
+                      - Log
+                      - Notification
+                      - Email
+                      - SMS
+                  description: Updated list of notification methods (optional)   
               required:
                 - conditionId
       responses:
