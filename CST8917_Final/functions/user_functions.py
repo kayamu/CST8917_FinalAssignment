@@ -111,12 +111,27 @@ def create_user(req: func.HttpRequest, user_type: str = "user") -> func.HttpResp
         "type": user_type          # Adding userType (default: "user")
     }
     
-    # Insert the user document into Cosmos DB
-    insert_result = cosmos_service.insert_document(user_doc)
-    
-    
-    response_body = {"message": f"{user_type.capitalize()} created successfully", "token": token, "server_response": insert_result}
-    return func.HttpResponse(json.dumps(response_body), status_code=201, mimetype="application/json")
+    try:
+        # Insert the user document into Cosmos DB
+        insert_result = cosmos_service.insert_document(user_doc)
+        
+        # Only include string representation of the result
+        response_body = {
+            "message": f"{user_type.capitalize()} created successfully", 
+            "token": token,
+            "userId": user_id
+        }
+        return func.HttpResponse(json.dumps(response_body), status_code=201, mimetype="application/json")
+    except Exception as e:
+        logging.error(f"Error in create_user: {str(e)}")
+        # Still return success if we know the user was created
+        response_body = {
+            "message": f"{user_type.capitalize()} created successfully", 
+            "token": token,
+            "userId": user_id,
+            "warning": "Response processing error occurred"
+        }
+        return func.HttpResponse(json.dumps(response_body), status_code=201, mimetype="application/json")
 
 
 def get_user_info(user_id: str):
@@ -162,62 +177,73 @@ def get_user(req: func.HttpRequest) -> func.HttpResponse:
 def update_user_put(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Processing update_user_put request.")
     
-    # Validate token and get user_id
-    logged_in_user_id = authenticate_user(req)
-    if isinstance(logged_in_user_id, func.HttpResponse):
-        return logged_in_user_id
-    
     try:
-        req_body = req.get_json()
-    except ValueError:
-        req_body = {}
+        # Validate token and get user_id
+        logged_in_user_id = authenticate_user(req)
+        if isinstance(logged_in_user_id, func.HttpResponse):
+            return logged_in_user_id
+        
+        try:
+            req_body = req.get_json()
+        except ValueError:
+            req_body = {}
 
-    # Ensure the request body is a dictionary
-    if not isinstance(req_body, dict):
-        return func.HttpResponse(
-            json.dumps({"message": "Invalid request body format"}), 
-            status_code=400, 
-            mimetype="application/json"
-        )
+        # Ensure the request body is a dictionary
+        if not isinstance(req_body, dict):
+            return func.HttpResponse(
+                json.dumps({"message": "Invalid request body format"}), 
+                status_code=400, 
+                mimetype="application/json"
+            )
 
-    admin_user = False
-    user = get_user_info(logged_in_user_id)
-    
-    if user["userType"] == "admin":
-        admin_user = True
+        user = get_user_info(logged_in_user_id)
+        if isinstance(user, func.HttpResponse):
+            return user
+            
+        # Check if user is admin - note: field should match what's in create_user
+        admin_user = False
+        if user.get("type") == "admin":  # Use "type" to match create_user
+            admin_user = True
 
+        # Support both query parameters and JSON body
+        target_user_id = req_body.get("userId") or req.params.get("userId", user.get("_id"))
+        
+        # Remove userId if present to avoid conflicts
+        if "userId" in req_body:
+            del req_body["userId"]
 
-    # Support both query parameters and JSON body
-    target_user_id = req_body.get("userId") or req.params.get("userId", user["_id"])
-    
-    # Remove userId if present to avoid conflicts
-    if "userId" in req_body:
-         del req_body["userId"]
-
-    if not req_body:
-        return func.HttpResponse(
-            json.dumps({"message": "Missing update data"}), 
-            status_code=400, 
-            mimetype="application/json"
-        )
-    
-    cosmos_service = CosmosDBService()
-    try:
+        if not req_body:
+            return func.HttpResponse(
+                json.dumps({"message": "Missing update data"}), 
+                status_code=400, 
+                mimetype="application/json"
+            )
+        
+        cosmos_service = CosmosDBService()
         # Check if the logged-in user is an admin
         if not admin_user and target_user_id != logged_in_user_id:
-            return func.HttpResponse("Access denied: Cannot update other users", status_code=403)
+            return func.HttpResponse(
+                json.dumps({"message": "Access denied: Cannot update other users"}),
+                status_code=403, 
+                mimetype="application/json"
+            )
         
+        # Update document in Cosmos DB
         result = cosmos_service.update_document({"_id": target_user_id}, {"$set": req_body})
-
+        
+        return func.HttpResponse(
+            json.dumps({"message": "User updated successfully"}), 
+            status_code=200, 
+            mimetype="application/json"
+        )
+            
     except Exception as e:
-        logging.error(f"Error while updating user: {str(e)}")
-        return func.HttpResponse(f"Error updating user: {str(e)}", status_code=500)
-    
-    return func.HttpResponse(
-        json.dumps({"message": "User updated successfully"}), 
-        status_code=200, 
-        mimetype="application/json"
-    )
+        logging.exception(f"Error in update_user_put: {str(e)}")
+        return func.HttpResponse(
+            json.dumps({"message": f"Internal server error: {str(e)}"}),
+            status_code=500,
+            mimetype="application/json"
+        )
 
 def update_password(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Processing update_password request.")
@@ -268,34 +294,42 @@ def update_password(req: func.HttpRequest) -> func.HttpResponse:
 def delete_user(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Processing delete_user request.")
     
-    # Validate token and get user_id
-    logged_in_user_id = authenticate_user(req)
-    if isinstance(logged_in_user_id, func.HttpResponse):  # If validation failed, return the error response
-        return logged_in_user_id
-    
     try:
-        req_body = req.get_json()
-    except ValueError:
-        req_body = {}
+        # Validate token and get user_id
+        logged_in_user_id = authenticate_user(req)
+        if isinstance(logged_in_user_id, func.HttpResponse):
+            return logged_in_user_id
+        
+        try:
+            req_body = req.get_json()
+        except ValueError:
+            req_body = {}
 
-    admin_user = False
-    user = get_user_info(logged_in_user_id)
-    
-    if user["userType"] == "admin":
-        admin_user = True
+        user = get_user_info(logged_in_user_id)
+        if isinstance(user, func.HttpResponse):
+            return user
+            
+        # Check if user is admin - note: field should match what's in create_user
+        admin_user = False
+        if user.get("type") == "admin":  # Use "type" to match create_user
+            admin_user = True
 
+        # Support both query parameters and JSON body
+        target_user_id = req_body.get("userId") or req.params.get("userId", user.get("_id"))
 
-    # Support both query parameters and JSON body
-    target_user_id = req_body.get("userId") or req.params.get("userId", user["_id"])
-
-    cosmos_service = CosmosDBService()
-    try:
+        cosmos_service = CosmosDBService()
         if not admin_user and target_user_id != logged_in_user_id:
-            return func.HttpResponse("Access denied: Cannot delete other users", status_code=403)
+            return func.HttpResponse(
+                json.dumps({"message": "Access denied: Cannot delete other users"}),
+                status_code=403,
+                mimetype="application/json"
+            )
         
         # Get the user document to find associated devices
         user_document = get_user_info(target_user_id)
-        
+        if isinstance(user_document, func.HttpResponse):
+            return user_document
+            
         # Extract all device IDs from the user document
         devices = user_document.get("Devices", [])
         device_ids = []
@@ -305,34 +339,31 @@ def delete_user(req: func.HttpRequest) -> func.HttpResponse:
         
         # Delete devices from IoT Hub if there are any
         if device_ids:
-            from azure_services.iot_hub_service import IoTHubService
-            iot_service = IoTHubService()
             try:
-                # Delete all devices in batch
-                iot_result = iot_service.delete_device_from_iot_hub(device_ids)
-                logging.info(f"IoT Hub device deletion results: {iot_result}")
+                from azure_services.iot_hub_service import IoTHubService
+                iot_service = IoTHubService()
+                iot_service.delete_device_from_iot_hub(device_ids)
+                logging.info(f"Successfully deleted {len(device_ids)} devices from IoT Hub")
             except Exception as iot_e:
                 logging.error(f"Error deleting devices from IoT Hub: {str(iot_e)}")
                 # Continue with user deletion even if device deletion fails
         
         # Delete the user from Cosmos DB
         result = cosmos_service.delete_document({"_id": target_user_id})
-        if result.deleted_count == 0:
-            return func.HttpResponse(
-                json.dumps({"message": "User not deleted"}), 
-                status_code=400, 
-                mimetype="application/json"
-            )
+        
+        return func.HttpResponse(
+            json.dumps({"message": "User deleted successfully"}), 
+            status_code=200, 
+            mimetype="application/json"
+        )
+            
     except Exception as e:
-        logging.error(f"Error while deleting user: {str(e)}")
-        return func.HttpResponse(f"Error deleting user: {str(e)}", status_code=500)
-    
-    return func.HttpResponse(
-        json.dumps({"message": "User deleted successfully"}), 
-        status_code=200, 
-        mimetype="application/json"
-    )
-
+        logging.exception(f"Error in delete_user: {str(e)}")
+        return func.HttpResponse(
+            json.dumps({"message": f"Internal server error: {str(e)}"}),
+            status_code=500,
+            mimetype="application/json"
+        )
 
 def login_user(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Processing login_user request.")

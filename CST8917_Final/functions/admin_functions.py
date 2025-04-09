@@ -117,8 +117,48 @@ def change_user_type(req: func.HttpRequest) -> func.HttpResponse:
     if not admin_user:
         return func.HttpResponse("Access denied: Only admins can change user types", status_code=403)
     
-    # Call the existing update_user_put method
-    return update_user_put(req)
+    # Get target user ID and type from query parameters or request body
+    try:
+        req_body = req.get_json()
+    except ValueError:
+        req_body = {}
+    
+    target_user_id = req.params.get("userId") or req_body.get("userId")
+    user_type = req.params.get("userType") or req_body.get("userType")
+    
+    if not target_user_id:
+        return func.HttpResponse(
+            json.dumps({"message": "Missing target userId parameter"}),
+            status_code=400,
+            mimetype="application/json"
+        )
+    
+    if not user_type:
+        return func.HttpResponse(
+            json.dumps({"message": "Missing userType parameter"}),
+            status_code=400,
+            mimetype="application/json"
+        )
+    
+    # Update the user's type directly
+    try:
+        result = cosmos_service.update_document(
+            {"_id": target_user_id}, 
+            {"$set": {"type": user_type}}
+        )
+        
+        return func.HttpResponse(
+            json.dumps({"message": f"User type changed to {user_type} successfully"}),
+            status_code=200,
+            mimetype="application/json"
+        )
+    except Exception as e:
+        logging.exception(f"Error in change_user_type: {str(e)}")
+        return func.HttpResponse(
+            json.dumps({"message": f"Internal server error: {str(e)}"}),
+            status_code=500,
+            mimetype="application/json"
+        )
 
 def create_admin_user(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Processing create_admin_user request.")
