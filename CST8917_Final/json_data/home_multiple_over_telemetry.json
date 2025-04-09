@@ -1,0 +1,74 @@
+[
+  {
+    "deviceId": "1453",
+    "values": [{ "valueType": "temperature", "value": 31.5 }]
+  },
+  {
+    "deviceId": "1453",
+    "values": [{ "valueType": "humidity", "value": 63.0 }]
+  },
+  {
+    "deviceId": "1453",
+    "values": [{ "valueType": "co2", "value": 340.0 }]
+  },
+  {
+    "deviceId": "1453",
+    "values": [{ "valueType": "voc", "value": 550.0 }]
+  },
+  {
+    "deviceId": "1453",
+    "values": [{ "valueType": "motion", "value": 0 }]
+  },
+  {
+    "deviceId": "1453",
+    "values": [{ "valueType": "sound level", "value": 25.0 }]
+  },
+  {
+    "deviceId": "1453",
+    "values": [{ "valueType": "light", "value": 1090.0 }]
+  },
+  {
+    "deviceId": "1453",
+    "values": [{ "valueType": "smoke", "value": 0 }]
+  },
+  {
+    "deviceId": "1453",
+    "values": [{ "valueType": "gas leak", "value": 1 }]
+  },
+  {
+    "deviceId": "1453",
+    "values": [{ "valueType": "water leak", "value": 1 }]
+  },
+  {
+    "deviceId": "1453",
+    "values": [{ "valueType": "heart rate", "value": 32.0 }]
+  },
+  {
+    "deviceId": "1453",
+    "values": [{ "valueType": "body temperature", "value": 38.3 }]
+  },
+  {
+    "deviceId": "1453",
+    "values": [{ "valueType": "blood pressure systolic", "value": 145.0 }]
+  },
+  {
+    "deviceId": "1453",
+    "values": [{ "valueType": "blood pressure diastolic", "value": 93.0 }]
+  },
+  {
+    "deviceId": "1453",
+    "values": [{ "valueType": "blood oxygen level", "value": 101.0 }]
+  },
+  {
+    "deviceId": "1453",
+    "values": [{ "valueType": "fall detection", "value": 1 }]
+  },
+  {
+    "deviceId": "1453",
+    "values": [{ "valueType": "sleep quality", "value": 110.0 }]
+  },
+  {
+    "deviceId": "1453",
+    "values": [{ "valueType": "weight", "value": 13.0 }]
+  }
+]
