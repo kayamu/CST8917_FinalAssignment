@@ -329,78 +329,95 @@ class BlobListener:
     async def add_telemetry_data(self, blob_name, device_id, event_id):
         """
         Updates the telemetry data with image URL information based on event_id.
+        Includes a retry mechanism to handle timing issues.
         
         Args:
             blob_name: The name of the blob file
             device_id: The device ID associated with the image
             event_id: The event ID to link the image to
-    
+
         Returns:
             dict: Updated user document or None if failed
         """
         logger.info(f"Searching for telemetry data with event_id: {event_id} across all users")
         
-        try:
-            from azure_services.cosmosdb_service import CosmosDBService
-            cosmos_service = CosmosDBService()
-            
-            # Normalize the event_id for comparison
-            search_event_id = str(event_id).strip()
-            
-            # Use a query that searches for the event_id in the nested telemetryData array
-            query = {
-                "Devices.telemetryData.eventId": search_event_id
-            }
-            
-            processed_blob_path = f"https://{self.storage_account_name}.blob.core.windows.net/{self.processed_container}/{device_id}/{blob_name}"
+        max_retries = 5
+        retry_delay = 2  # seconds
+        
+        for attempt in range(max_retries):
+            try:
+                from azure_services.cosmosdb_service import CosmosDBService
+                cosmos_service = CosmosDBService()
+                
+                # Normalize the event_id for comparison
+                search_event_id = str(event_id).strip()
+                
+                # Use a query that searches for the event_id in the nested telemetryData array
+                query = {
+                    "Devices.telemetryData.eventId": search_event_id
+                }
+                
+                processed_blob_path = f"https://{self.storage_account_name}.blob.core.windows.net/{self.processed_container}/{device_id}/{blob_name}"
 
-            # Find the document containing the event_id
-            user = cosmos_service.find_document(query)
-            
-            if not user:
-                logger.warning(f"No telemetry data found with event_id: {search_event_id} across all users")
+                # Find the document containing the event_id
+                user = cosmos_service.find_document(query)
+                
+                if not user:
+                    logger.warning(f"Attempt {attempt+1}/{max_retries}: No telemetry data found with event_id: {search_event_id}")
+                    if attempt < max_retries - 1:
+                        logger.info(f"Waiting {retry_delay} seconds before retry...")
+                        await asyncio.sleep(retry_delay)
+                        # Increase delay for next attempt (exponential backoff)
+                        retry_delay *= 1.5
+                        continue
+                    else:
+                        logger.warning(f"All retries exhausted. No telemetry data found with event_id: {search_event_id}")
+                        return None
+                
+                # Now modify the document in memory
+                telemetry_updated = False
+                
+                # Find and update the specific telemetry entry
+                for device in user.get("Devices", []):
+                    for telemetry in device.get("telemetryData", []):
+                        telemetry_event_id = str(telemetry.get("eventId", "")).strip()
+                        
+                        if telemetry_event_id == search_event_id:
+                            logger.info(f"Found telemetry data with event_id: {search_event_id} in user: {user.get('username')}, device: {device.get('deviceId')}")
+                            
+                            # Update the telemetry with the image URL directly in the object
+                            telemetry["imageUrl"] = processed_blob_path
+                            telemetry_updated = True
+                            
+                            # Once we've made the update, replace the entire document
+                            filter_query = {"_id": user.get("_id")}
+                            
+                            # Update the document in Cosmos DB with the modified user object
+                            result = cosmos_service.update_document(filter_query, {"$set": user})
+                            
+                            if result:
+                                logger.info(f"Updated telemetry data with imageUrl: {processed_blob_path}")
+                                return {
+                                    "user": user,
+                                    "device_id": device.get("deviceId"),
+                                    "telemetry": telemetry
+                                }
+                            else:
+                                logger.error(f"Failed to update document in Cosmos DB")
+                                return None
+                
+                # This should not happen if the query worked correctly, but as a fallback
+                if not telemetry_updated:
+                    logger.warning(f"Event ID {search_event_id} found in user document but not in telemetry data (inconsistent state)")
                 return None
-            
-            # Now modify the document in memory
-            telemetry_updated = False
-            
-            # Find and update the specific telemetry entry
-            for device in user.get("Devices", []):
-                for telemetry in device.get("telemetryData", []):
-                    telemetry_event_id = str(telemetry.get("eventId", "")).strip()
-                    
-                    if telemetry_event_id == search_event_id:
-                        logger.info(f"Found telemetry data with event_id: {search_event_id} in user: {user.get('username')}, device: {device.get('deviceId')}")
-                        
-                        # Update the telemetry with the image URL directly in the object
-                        telemetry["imageUrl"] = processed_blob_path
-                        telemetry_updated = True
-                        
-                        # Once we've made the update, replace the entire document
-                        filter_query = {"_id": user.get("_id")}
-                        
-                        # Update the document in Cosmos DB with the modified user object
-                        result = cosmos_service.update_document(filter_query, {"$set": user})
-                        
-                        if result:
-                            logger.info(f"Updated telemetry data with imageUrl: {processed_blob_path}")
-                            return {
-                                "user": user,
-                                "device_id": device.get("deviceId"),
-                                "telemetry": telemetry
-                            }
-                        else:
-                            logger.error(f"Failed to update document in Cosmos DB")
-                            return None
-            
-            # This should not happen if the query worked correctly, but as a fallback
-            if not telemetry_updated:
-                logger.warning(f"Event ID {search_event_id} found in user document but not in telemetry data (inconsistent state)")
-            return None
-            
-        except Exception as e:
-            logger.exception(f"Error searching for telemetry data with event_id: {search_event_id}: {str(e)}")
-            return None
+                
+            except Exception as e:
+                logger.exception(f"Attempt {attempt+1}/{max_retries}: Error searching for telemetry data with event_id: {search_event_id}: {str(e)}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 1.5
+                else:
+                    return None
 
 
     async def get_user_by_filename(self, blob_filename):

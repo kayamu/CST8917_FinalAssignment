@@ -32,31 +32,95 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 def post_telemetry(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Processing telemetry data request.")
     
-    # Parse the request body
-    try:
-        device_id = req.form.get("deviceId")  # Get deviceId from form data
-        values = req.form.get("values")  # Get values as a JSON string
-        event_date = datetime.datetime.now(datetime.timezone.utc).isoformat()  # Fixed: Removed trailing comma
-        image = req.files.get("image")  # Get the uploaded image file
-
-        # Parse values from JSON string to Python object
-        if values:
-            values = json.loads(values)  # Convert JSON string to Python object
-            if not isinstance(values, list):  # Ensure values is a list
-                values = [values]
-    except Exception as e:
-        logging.error(f"Invalid request body: {str(e)}")
-        return func.HttpResponse("Invalid request body", status_code=400)
+    # Check content-type to determine how to process the request
+    content_type = req.headers.get('Content-Type', '')
     
-    # Validate required fields
-    if not device_id or not values:
-        logging.error(f"Missing required fields: deviceId={device_id}, values={values}")
+    try:
+        # First check if deviceId is provided as a query parameter
+        device_id_from_query = req.params.get("deviceId")
+        
+        if 'multipart/form-data' in content_type:
+            # Process form data (existing functionality)
+            try:
+                device_id = req.form.get("deviceId") or device_id_from_query
+                values = req.form.get("values")  # Get values as a JSON string
+                event_date = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                image = req.files.get("image")  # Get the uploaded image file
+
+                # Parse values from JSON string to Python object
+                if values:
+                    values_data = json.loads(values)  # Convert JSON string to Python object
+                    
+                    # Check if values is already a list of telemetry items with deviceId
+                    if isinstance(values_data, list) and all(isinstance(item, dict) and "deviceId" in item for item in values_data):
+                        # This is a list of complete telemetry items
+                        # Process as JSON data with multiple items
+                        logging.info("Detected multiple telemetry items in values field")
+                        return process_multiple_telemetry(values_data)
+                    
+                    # Normal case - values is just sensor readings
+                    if not isinstance(values_data, list):  # Ensure values is a list
+                        values_data = [values_data]
+                    
+                    values = values_data
+            except Exception as e:
+                logging.error(f"Invalid form data: {str(e)}")
+                return func.HttpResponse("Invalid form data", status_code=400)
+                
+            # Validate required fields - device_id can be empty if it's included in the values
+            if not device_id and not (isinstance(values, list) and all("deviceId" in item for item in values)):
+                logging.error(f"Missing required fields: deviceId={device_id}, values={values}")
+                return func.HttpResponse(
+                    json.dumps({"message": "Missing required fields or invalid data"}), 
+                    status_code=400, 
+                    mimetype="application/json"
+                )
+                
+            # Process single telemetry item with possible image
+            return process_single_telemetry(device_id, values, event_date, image)
+            
+        else:
+            # Process as JSON data
+            try:
+                req_body = req.get_json()
+            except ValueError:
+                logging.error("Invalid JSON in request body")
+                return func.HttpResponse(
+                    json.dumps({"message": "Invalid JSON in request body"}),
+                    status_code=400,
+                    mimetype="application/json"
+                )
+            
+            # Handle both single object and array formats
+            items_to_process = []
+            if isinstance(req_body, list):
+                items_to_process = req_body
+            else:
+                items_to_process = [req_body]
+            
+            # Override deviceId with query parameter if provided
+            if device_id_from_query:
+                for item in items_to_process:
+                    item["deviceId"] = device_id_from_query
+            
+            # Process all telemetry items
+            return process_multiple_telemetry(items_to_process)
+            
+    except Exception as e:
+        logging.exception(f"Error in post_telemetry: {str(e)}")
         return func.HttpResponse(
-            json.dumps({"message": "Missing required fields or invalid data"}), 
-            status_code=400, 
+            json.dumps({"message": f"Error processing request: {str(e)}"}),
+            status_code=500,
             mimetype="application/json"
         )
 
+def process_single_telemetry(device_id, values, event_date, image=None):
+    """Process a single telemetry item with possible image attachment"""
+    # Check if values contains complete telemetry items with deviceId
+    if isinstance(values, list) and all(isinstance(item, dict) and "deviceId" in item for item in values):
+        # This is actually multiple telemetry items, redirect to the appropriate handler
+        return process_multiple_telemetry(values)
+    
     # Search for the deviceId across all users in the database
     cosmos_service = CosmosDBService()
     logging.info(f"Searching for deviceId={device_id} across all users in CosmosDB.")
@@ -72,14 +136,13 @@ def post_telemetry(req: func.HttpRequest) -> func.HttpResponse:
    
     event_id = str(uuid.uuid4())  # Generate a unique event ID
     
-
     # Generate telemetry data structure
     telemetry_data = {
         "deviceId": device_id,
-        "userId": user["_id"],  # User ID from the database
-        "eventId": event_id,  # Generate a unique event ID
-        "event_date": event_date,  # Correctly formatted event_date
-        "values": values,  # List of key-value pairs
+        "userId": user["_id"],
+        "eventId": event_id,
+        "event_date": event_date,
+        "values": values,
     }
 
     # Send telemetry data to Service Bus Queue
@@ -92,10 +155,11 @@ def post_telemetry(req: func.HttpRequest) -> func.HttpResponse:
         logging.info(f"Telemetry data sent to Service Bus Queue: {queue_name}")
 
         # Process the image if provided
+        blob_filename = None
         if image:
             try:
-                process_image(image, device_id, event_id, telemetry_data)
-
+                blob_filename = process_image(image, device_id, event_id, telemetry_data)
+                logging.info(f"Image processed successfully: {blob_filename}")
             except Exception as e:
                 logging.error(f"Failed to process the image: {str(e)}")
                 return func.HttpResponse(
@@ -105,15 +169,122 @@ def post_telemetry(req: func.HttpRequest) -> func.HttpResponse:
                 )
     except Exception as e:
         logging.exception("Failed to send telemetry data to Service Bus Queue.")
-        return func.HttpResponse(f"Failed to send telemetry data to Service Bus Queue: {str(e)}", status_code=500)
+        return func.HttpResponse(
+            json.dumps({"message": f"Failed to send telemetry data to Service Bus Queue: {str(e)}"}), 
+            status_code=500,
+            mimetype="application/json"
+        )
     
+    response_data = {
+        "message": "Telemetry data sent to Service Bus Queue successfully",
+        "eventId": event_id
+    }
+    
+    if blob_filename:
+        response_data["imageUrl"] = blob_filename
+        
     return func.HttpResponse(
-        json.dumps({"message": "Telemetry data sent to Service Bus Queue successfully"}), 
+        json.dumps(response_data), 
         status_code=202,  # 202 Accepted, because the data is queued for processing
         mimetype="application/json"
     )
 
-
+def process_multiple_telemetry(items_to_process):
+    """Process multiple telemetry items from JSON data"""
+    processed_items = 0
+    results = []
+    
+    for item in items_to_process:
+        try:
+            device_id = item.get("deviceId")
+            values = item.get("values")
+            event_date = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            
+            # Validate required fields
+            if not device_id or not values:
+                logging.warning(f"Missing required fields in item: {item}")
+                results.append({
+                    "status": "error", 
+                    "message": "Missing deviceId or values"
+                })
+                continue
+            
+            # Ensure values is a list
+            if not isinstance(values, list):
+                values = [values]
+            
+            # Search for the deviceId across all users in the database
+            cosmos_service = CosmosDBService()
+            logging.info(f"Searching for deviceId={device_id} across all users in CosmosDB.")
+            user = cosmos_service.find_document({"Devices.deviceId": device_id})
+            
+            if not user:
+                logging.error(f"Device with deviceId={device_id} not found in any user.")
+                results.append({
+                    "status": "error", 
+                    "message": "Device not found", 
+                    "deviceId": device_id
+                })
+                continue
+            
+            event_id = str(uuid.uuid4())  # Generate a unique event ID
+            
+            # Generate telemetry data structure
+            telemetry_data = {
+                "deviceId": device_id,
+                "userId": user["_id"],
+                "eventId": event_id,
+                "event_date": event_date,
+                "values": values,
+            }
+            
+            # Send telemetry data to Service Bus Queue
+            from azure_services.servicebus_service import ServiceBusService
+            service_bus = ServiceBusService()
+            azure_config = get_azure_config()
+            queue_name = azure_config.get("SERVICE_BUS_QUEUE_NAME")
+            service_bus.send_message(queue_name, json.dumps(telemetry_data))
+            
+            processed_items += 1
+            results.append({
+                "status": "success",
+                "message": "Telemetry data sent to queue",
+                "deviceId": device_id,
+                "eventId": event_id
+            })
+            
+            logging.info(f"Telemetry data sent to Service Bus Queue: {queue_name} for deviceId={device_id}")
+        
+        except Exception as e:
+            logging.exception(f"Failed to process telemetry item: {str(e)}")
+            results.append({
+                "status": "error", 
+                "message": str(e),
+                "deviceId": item.get("deviceId", "unknown")
+            })
+    
+    # Return appropriate response based on processing results
+    if processed_items == 0:
+        return func.HttpResponse(
+            json.dumps({"message": "Failed to process all telemetry items", "details": results}),
+            status_code=400,
+            mimetype="application/json"
+        )
+    
+    response = {
+        "message": "Telemetry data sent to Service Bus Queue successfully",
+        "processed": processed_items,
+        "details": results
+    }
+    
+    if len(items_to_process) > 1:
+        response["message"] = f"Processed {processed_items} out of {len(items_to_process)} telemetry items"
+    
+    return func.HttpResponse(
+        json.dumps(response),
+        status_code=202,  # 202 Accepted
+        mimetype="application/json"
+    )
 
 def process_image(image, device_id, event_id, telemetry_data):
     """
