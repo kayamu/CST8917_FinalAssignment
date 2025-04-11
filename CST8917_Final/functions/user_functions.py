@@ -141,11 +141,7 @@ def get_user_info(user_id: str):
     cosmos_service = CosmosDBService()
     user = cosmos_service.find_document({"_id": user_id})
     if not user:
-        return func.HttpResponse(
-            json.dumps({"message": "User not found"}), 
-            status_code=404, 
-            mimetype="application/json"
-        )
+        return None  # Return None instead of HttpResponse
     # Remove sensitive information before returning
     user.pop("password", None)
     user["_id"] = str(user["_id"])
@@ -197,8 +193,12 @@ def update_user_put(req: func.HttpRequest) -> func.HttpResponse:
             )
 
         user = get_user_info(logged_in_user_id)
-        if isinstance(user, func.HttpResponse):
-            return user
+        if user is None:
+            return func.HttpResponse(
+                json.dumps({"message": "User not found"}),
+                status_code=404,
+                mimetype="application/json"
+            )
             
         # Check if user is admin - note: field should match what's in create_user
         admin_user = False

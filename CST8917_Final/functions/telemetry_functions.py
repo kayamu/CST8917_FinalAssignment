@@ -37,12 +37,12 @@ def post_telemetry(req: func.HttpRequest) -> func.HttpResponse:
     
     try:
         # First check if deviceId is provided as a query parameter
-        device_id_from_query = req.params.get("deviceId")
+        device_id_from_param = req.params.get("deviceId")
         
         if 'multipart/form-data' in content_type:
             # Process form data (existing functionality)
             try:
-                device_id = req.form.get("deviceId") or device_id_from_query
+                device_id = req.form.get("deviceId") or device_id_from_param
                 values = req.form.get("values")  # Get values as a JSON string
                 event_date = datetime.datetime.now(datetime.timezone.utc).isoformat()
                 image = req.files.get("image")  # Get the uploaded image file
