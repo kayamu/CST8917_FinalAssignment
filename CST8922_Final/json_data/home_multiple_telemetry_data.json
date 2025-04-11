@@ -1,0 +1,164 @@
+[
+    {
+      "deviceId": "1453",
+      "values": [
+        {
+          "valueType": "temperature",
+          "value": 19.57
+        }
+      ]
+    },
+    {
+      "deviceId": "1453",
+      "values": [
+        {
+          "valueType": "humidity",
+          "value": 34.16
+        }
+      ]
+    },
+    {
+      "deviceId": "1453",
+      "values": [
+        {
+          "valueType": "co2",
+          "value": 1074.69
+        }
+      ]
+    },
+    {
+      "deviceId": "1453",
+      "values": [
+        {
+          "valueType": "voc",
+          "value": 161.86
+        }
+      ]
+    },
+    {
+      "deviceId": "1453",
+      "values": [
+        {
+          "valueType": "motion",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "deviceId": "1453",
+      "values": [
+        {
+          "valueType": "sound level",
+          "value": 57.41
+        }
+      ]
+    },
+    {
+      "deviceId": "1453",
+      "values": [
+        {
+          "valueType": "light",
+          "value": 424.81
+        }
+      ]
+    },
+    {
+      "deviceId": "1453",
+      "values": [
+        {
+          "valueType": "smoke",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "deviceId": "1453",
+      "values": [
+        {
+          "valueType": "gas leak",
+          "value": 1
+        }
+      ]
+    },
+    {
+      "deviceId": "1453",
+      "values": [
+        {
+          "valueType": "water leak",
+          "value": 1
+        }
+      ]
+    },
+    {
+      "deviceId": "1453",
+      "values": [
+        {
+          "valueType": "heart rate",
+          "value": 65.69
+        }
+      ]
+    },
+    {
+      "deviceId": "1453",
+      "values": [
+        {
+          "valueType": "body temperature",
+          "value": 36.82
+        }
+      ]
+    },
+    {
+      "deviceId": "1453",
+      "values": [
+        {
+          "valueType": "blood pressure systolic",
+          "value": 120.62
+        }
+      ]
+    },
+    {
+      "deviceId": "1453",
+      "values": [
+        {
+          "valueType": "blood pressure diastolic",
+          "value": 54.75
+        }
+      ]
+    },
+    {
+      "deviceId": "1453",
+      "values": [
+        {
+          "valueType": "blood oxygen level",
+          "value": 94.05
+        }
+      ]
+    },
+    {
+      "deviceId": "1453",
+      "values": [
+        {
+          "valueType": "fall detection",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "deviceId": "1453",
+      "values": [
+        {
+          "valueType": "sleep quality",
+          "value": 48.32
+        }
+      ]
+    },
+    {
+      "deviceId": "1453",
+      "values": [
+        {
+          "valueType": "weight",
+          "value": 192.75
+        }
+      ]
+    }
+  ]

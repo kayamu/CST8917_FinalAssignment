@@ -1,0 +1,22 @@
+31b53c1 - kayamu, 2025-04-09 : new improvements
+36b5ca9 - kayamu, 2025-04-09 : home multiple over telemetry json file extention fixed
+dd157bc - kayamu, 2025-04-09 : from swagger.yaml updated condition put method uncessery parameters removed
+822a97c - kayamu, 2025-04-09 : blobstorage_listener.py telemtry data imageurl error fixed
+14d1a24 - kayamu, 2025-04-08 : sample JSON data added
+65f949c - kayamu, 2025-04-08 : swagger.yaml updated
+4ea7f3a - kayamu, 2025-04-08 : image search feature added and return value changed with sas token
+5f03739 - kayamu, 2025-04-08 : telemetry data url error fixed
+63e7cfe - kayamu, 2025-04-08 : after image prcessed new image info added to telemetry data feature added
+abb803f - kayamu, 2025-04-08 : Blob operations moved to Blobstorage Listener
+79c28fe - kayamu, 2025-04-08 : request method bugs fixed
+66dd2a5 - kayamu, 2025-04-07 : fire detection method changed basic test methods added
+3850d8e - kayamu, 2025-04-07 : Service bus listener moved to listernes folder
+09b8695 - kayamu, 2025-04-06 : alertLogs methods added
+8ae03de - kayamu, 2025-04-05 : conditions updated with notification and scope, now people can login with username eighter email (by corneille request)
+06ecc49 - kayamu, 2025-04-05 : azure communication services added
+efeb633 - kayamu, 2025-04-05 : service bus added for telemetry data and schedulled services fixed
+00dfc5b - kayamu, 2025-04-05 : service bus service added
+93cf367 - kayamu, 2025-04-05 : user create function updated
+dbfd039 - kayamu, 2025-04-04 : user functions updated
+3e1bdd8 - kayamu, 2025-04-04 : first commit
+0d278ea - kayamu, 2025-04-04 : Initial commit

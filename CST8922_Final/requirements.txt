@@ -1,0 +1,24 @@
+# DO NOT include azure-functions-worker in this file
+# The Python Worker is managed by Azure Functions platform
+# Manually managing azure-functions-worker may cause unexpected issues
+
+azure-functions
+pymongo
+bcrypt
+PyJWT
+requests
+Pillow
+aiohttp
+azure-storage-blob
+azure-servicebus
+azure-communication-email
+azure-identity
+azure-core
+azure-eventgrid
+dnspython
+azure-eventhub
+azure-iot-hub
+azure-mgmt-iothub
+azure-cognitiveservices-vision-computervision 
+azure-cognitiveservices-vision-customvision
+

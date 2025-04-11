@@ -1,0 +1,165 @@
+[
+    {
+      "valueType": "temperature",
+      "minValue": 15,
+      "maxValue": 30,
+      "exactValue": null,
+      "unit": "°C",
+      "scope": "general",
+      "notificationMethods": ["Log", "Notification", "Email"]
+    },
+    {
+      "valueType": "humidity",
+      "minValue": 30,
+      "maxValue": 60,
+      "exactValue": null,
+      "unit": "%RH",
+      "scope": "general",
+      "notificationMethods": ["Log", "Notification", "Email"]
+    },
+    {
+      "valueType": "co2",
+      "minValue": 400,
+      "maxValue": 1000,
+      "exactValue": null,
+      "unit": "ppm",
+      "scope": "general",
+      "notificationMethods": ["Log", "Notification", "Email"]
+    },
+    {
+      "valueType": "voc",
+      "minValue": 0,
+      "maxValue": 500,
+      "exactValue": null,
+      "unit": "ppb",
+      "scope": "general",
+      "notificationMethods": ["Log", "Notification", "Email"]
+    },
+    {
+      "valueType": "motion",
+      "minValue": 0,
+      "maxValue": 1,
+      "exactValue": null,
+      "unit": "Boolean",
+      "scope": "general",
+      "notificationMethods": ["Log", "Notification", "Email"]
+    },
+    {
+      "valueType": "sound level",
+      "minValue": 30,
+      "maxValue": 80,
+      "exactValue": null,
+      "unit": "dB",
+      "scope": "general",
+      "notificationMethods": ["Log", "Notification", "Email"]
+    },
+    {
+      "valueType": "light",
+      "minValue": 100,
+      "maxValue": 1000,
+      "exactValue": null,
+      "unit": "lux",
+      "scope": "general",
+      "notificationMethods": ["Log", "Notification", "Email"]
+    },
+    {
+      "valueType": "smoke",
+      "minValue": 0,
+      "maxValue": 1,
+      "exactValue": null,
+      "unit": "Boolean",
+      "scope": "general",
+      "notificationMethods": ["Log", "Notification", "Email"]
+    },
+    {
+      "valueType": "gas leak",
+      "minValue": 0,
+      "maxValue": 1,
+      "exactValue": null,
+      "unit": "Boolean",
+      "scope": "general",
+      "notificationMethods": ["Log", "Notification", "Email"]
+    },
+    {
+      "valueType": "water leak",
+      "minValue": 0,
+      "maxValue": 1,
+      "exactValue": null,
+      "unit": "Boolean",
+      "scope": "general",
+      "notificationMethods": ["Log", "Notification", "Email"]
+    },
+  
+    {
+      "valueType": "heart rate",
+      "minValue": 40,
+      "maxValue": 120,
+      "exactValue": null,
+      "unit": "bpm",
+      "scope": "general",
+      "notificationMethods": ["Log", "Notification", "Email"]
+    },
+    {
+      "valueType": "body temperature",
+      "minValue": 35,
+      "maxValue": 38,
+      "exactValue": null,
+      "unit": "°C",
+      "scope": "general",
+      "notificationMethods": ["Log", "Notification", "Email"]
+    },
+    {
+      "valueType": "blood pressure systolic",
+      "minValue": 90,
+      "maxValue": 140,
+      "exactValue": null,
+      "unit": "mmHg",
+      "scope": "general",
+      "notificationMethods": ["Log", "Notification", "Email"]
+    },
+    {
+      "valueType": "blood pressure diastolic",
+      "minValue": 60,
+      "maxValue": 90,
+      "exactValue": null,
+      "unit": "mmHg",
+      "scope": "general",
+      "notificationMethods": ["Log", "Notification", "Email"]
+    },
+    {
+      "valueType": "blood oxygen level",
+      "minValue": 90,
+      "maxValue": 100,
+      "exactValue": null,
+      "unit": "%",
+      "scope": "general",
+      "notificationMethods": ["Log", "Notification", "Email"]
+    },
+    {
+      "valueType": "fall detection",
+      "minValue": 0,
+      "maxValue": 1,
+      "exactValue": null,
+      "unit": "Boolean",
+      "scope": "general",
+      "notificationMethods": ["Log", "Notification", "Email"]
+    },
+    {
+      "valueType": "sleep quality",
+      "minValue": 0,
+      "maxValue": 100,
+      "exactValue": null,
+      "unit": "%",
+      "scope": "general",
+      "notificationMethods": ["Log", "Notification", "Email"]
+    },
+    {
+      "valueType": "weight",
+      "minValue": 30,
+      "maxValue": 200,
+      "exactValue": null,
+      "unit": "kg",
+      "scope": "general",
+      "notificationMethods": ["Log", "Notification", "Email"]
+    }
+  ]

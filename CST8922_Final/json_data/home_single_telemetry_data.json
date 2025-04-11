@@ -1,0 +1,23 @@
+{
+    "deviceId": "1453",
+    "values": [
+      { "valueType": "temperature", "value": 19.57 },
+      { "valueType": "humidity", "value": 64.13 },
+      { "valueType": "co2", "value": 761.64 },
+      { "valueType": "voc", "value": -37.42 },
+      { "valueType": "motion", "value": 0 },
+      { "valueType": "sound level", "value": 43.55 },
+      { "valueType": "light", "value": 1049.82 },
+      { "valueType": "smoke", "value": 1 },
+      { "valueType": "gas leak", "value": 1 },
+      { "valueType": "water leak", "value": 1 },
+      { "valueType": "heart rate", "value": 65.5 },
+      { "valueType": "body temperature", "value": 36.34 },
+      { "valueType": "blood pressure systolic", "value": 104.59 },
+      { "valueType": "blood pressure diastolic", "value": 91.87 },
+      { "valueType": "blood oxygen level", "value": 96.03 },
+      { "valueType": "fall detection", "value": 0 },
+      { "valueType": "sleep quality", "value": -12.05 },
+      { "valueType": "weight", "value": 178.98 }
+    ]
+  }
