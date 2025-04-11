@@ -3,9 +3,9 @@ import json
 import os  # Dosya uzantısını almak için gerekli
 from azure.servicebus import ServiceBusClient, ServiceBusMessage
 from config.azure_config import get_azure_config
-from azure_services.cosmosdb_service import CosmosDBService
-from azure_services.blob_storage_service import BlobStorageService
-from azure_services.iot_hub_service import IoTHubService
+from azure_services.CosmosdbService import CosmosDBService
+from azure_services.BlobstorageService import BlobStorageService
+from azure_services.IothubService import IoTHubService
 
 class ServiceBusService:
     def __init__(self):

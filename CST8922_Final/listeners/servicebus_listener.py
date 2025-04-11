@@ -3,12 +3,12 @@ import azure.functions as func
 from azure.servicebus import ServiceBusMessage
 import json
 import os  # For file extension extraction
-from azure_services.cosmosdb_service import CosmosDBService
-from azure_services.blob_storage_service import BlobStorageService
-from azure_services.iot_hub_service import IoTHubService
+from azure_services.CosmosdbService import CosmosDBService
+from azure_services.BlobstorageService import BlobStorageService
+from azure_services.IothubService import IoTHubService
 from config.azure_config import get_azure_config
-from azure_services.notification_service import NotificationService
-from azure_services.communication_service import CommunicationService
+from azure_services.NotificationService import NotificationService
+from azure_services.CommunicationService import CommunicationService
 from datetime import datetime, timezone  # Import timezone explicitly
 
 class ServiceBusListener:

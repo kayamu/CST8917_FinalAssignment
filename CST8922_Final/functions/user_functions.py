@@ -4,7 +4,7 @@ import uuid
 import azure.functions as func
 from config.jwt_utils import create_token, authenticate_user
 from config.password_utils import hash_password, verify_password
-from azure_services.cosmosdb_service import CosmosDBService
+from azure_services.CosmosdbService import CosmosDBService
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
@@ -340,7 +340,7 @@ def delete_user(req: func.HttpRequest) -> func.HttpResponse:
         # Delete devices from IoT Hub if there are any
         if device_ids:
             try:
-                from azure_services.iot_hub_service import IoTHubService
+                from azure_services.IothubService import IoTHubService
                 iot_service = IoTHubService()
                 iot_service.delete_device_from_iot_hub(device_ids)
                 logging.info(f"Successfully deleted {len(device_ids)} devices from IoT Hub")

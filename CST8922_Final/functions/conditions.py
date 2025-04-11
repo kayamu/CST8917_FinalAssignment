@@ -2,7 +2,7 @@ import logging
 import json
 import azure.functions as func
 from bson import ObjectId  # Import for handling ObjectId
-from azure_services.cosmosdb_service import CosmosDBService
+from azure_services.CosmosdbService import CosmosDBService
 from config.jwt_utils import authenticate_user
 from config.azure_config import get_azure_config  # Import for reading Azure configuration
 

@@ -2,7 +2,7 @@ import json
 import logging
 import azure.functions as func
 from config.jwt_utils import decode_token, authenticate_user
-from azure_services.cosmosdb_service import CosmosDBService
+from azure_services.CosmosdbService import CosmosDBService
 from functions.user_functions import create_user, update_user_put
 from config.azure_config import get_azure_config
 from azure.storage.blob import BlobServiceClient
@@ -219,7 +219,7 @@ def list_processed_images(req: func.HttpRequest) -> func.HttpResponse:
         # Create blob service client
         blob_service_client = BlobServiceClient.from_connection_string(connection_string)
         container_client = blob_service_client.get_container_client(container_name)
-        from azure_services.blob_storage_service import BlobStorageService
+        from azure_services.BlobstorageService import BlobStorageService
         blob_service = BlobStorageService()
         
         # Case A: If only imageUrl is provided (complete path to a specific file)

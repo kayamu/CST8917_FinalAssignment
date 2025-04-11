@@ -3,7 +3,7 @@ import datetime
 import logging
 from azure.storage.blob import BlobServiceClient
 from config.azure_config import get_azure_config
-from azure_services.cosmosdb_service import CosmosDBService
+from azure_services.CosmosdbService import CosmosDBService
 
 def scheduled_cleanup(timer_info):
     try:

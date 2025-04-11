@@ -3,8 +3,8 @@ import logging
 import asyncio
 import time
 import urllib.parse
-from azure_services.cognitive_service import CognitiveServices
-from azure_services.cosmosdb_service import CosmosDBService
+from azure_services.VisionService import CognitiveServices
+from azure_services.CosmosdbService import CosmosDBService
 from config.azure_config import get_azure_config
 from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPermissions
 from azure.storage.blob.aio import BlobServiceClient as AsyncBlobServiceClient
@@ -182,8 +182,8 @@ class BlobListener:
         logger.info(f"Processing analysis results for content detection {event_id}")
         try:
             import datetime
-            from azure_services.blob_storage_service import BlobStorageService
-            from azure_services.communication_service import CommunicationService
+            from azure_services.BlobstorageService import BlobStorageService
+            from azure_services.CommunicationService import CommunicationService
             from config.azure_config import get_azure_config
             
             # Check if analysis_result contains valid information
@@ -347,7 +347,7 @@ class BlobListener:
         
         for attempt in range(max_retries):
             try:
-                from azure_services.cosmosdb_service import CosmosDBService
+                from azure_services.CosmosdbService import CosmosDBService
                 cosmos_service = CosmosDBService()
                 
                 # Normalize the event_id for comparison

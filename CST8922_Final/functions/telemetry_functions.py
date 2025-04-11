@@ -3,11 +3,11 @@ import datetime
 import json
 import logging
 import azure.functions as func
-from azure_services.cosmosdb_service import CosmosDBService
-from azure_services.iot_hub_service import IoTHubService
-from azure_services.blob_storage_service import BlobStorageService
-from azure_services.notification_service import NotificationService
-from azure_services.communication_service import CommunicationService
+from azure_services.CosmosdbService import CosmosDBService
+from azure_services.IothubService import IoTHubService
+from azure_services.BlobstorageService import BlobStorageService
+from azure_services.NotificationService import NotificationService
+from azure_services.CommunicationService import CommunicationService
 from config.jwt_utils import authenticate_user, get_azure_config
 
 import base64  # Base64 encoding için gerekli
@@ -147,7 +147,7 @@ def process_single_telemetry(device_id, values, event_date, image=None):
 
     # Send telemetry data to Service Bus Queue
     try:
-        from azure_services.servicebus_service import ServiceBusService
+        from azure_services.ServicebusService import ServiceBusService
         service_bus = ServiceBusService()
         azure_config = get_azure_config()
         queue_name = azure_config.get("SERVICE_BUS_QUEUE_NAME")
@@ -239,7 +239,7 @@ def process_multiple_telemetry(items_to_process):
             }
             
             # Send telemetry data to Service Bus Queue
-            from azure_services.servicebus_service import ServiceBusService
+            from azure_services.ServicebusService import ServiceBusService
             service_bus = ServiceBusService()
             azure_config = get_azure_config()
             queue_name = azure_config.get("SERVICE_BUS_QUEUE_NAME")

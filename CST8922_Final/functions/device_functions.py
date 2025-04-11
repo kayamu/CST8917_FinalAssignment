@@ -3,8 +3,8 @@ import logging
 import datetime
 import azure.functions as func
 from config.jwt_utils import authenticate_user
-from azure_services.cosmosdb_service import CosmosDBService
-from azure_services.iot_hub_service import IoTHubService
+from azure_services.CosmosdbService import CosmosDBService
+from azure_services.IothubService import IoTHubService
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     """

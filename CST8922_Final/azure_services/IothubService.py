@@ -1,7 +1,7 @@
 import logging
 from azure.iot.hub import IoTHubRegistryManager
 from config.azure_config import get_azure_config
-from azure_services.eventtopic_service import forward_event
+from azure_services.EventtopicService import forward_event
 from typing import Union
 
 

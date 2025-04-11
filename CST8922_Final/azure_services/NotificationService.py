@@ -6,7 +6,7 @@ import urllib.parse
 import hmac
 import hashlib
 from config.azure_config import get_azure_config
-from azure_services.communication_service import CommunicationService
+from azure_services.CommunicationService import CommunicationService
 
 class NotificationService:
     def __init__(self):
