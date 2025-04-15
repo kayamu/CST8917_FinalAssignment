@@ -15,7 +15,7 @@ class NotificationService:
         self.hub_name = config["NOTIFICATION_HUB_NAME"]
         self.connection_string = config["NOTIFICATION_HUB_CONNECTION_STRING"]
 
-        # Yeni eklenen ayrıştırma kodu
+        # Parse connection string for SAS key name and value
         parts = dict(item.split('=', 1) for item in self.connection_string.split(';'))
         self.sas_key_name = parts['SharedAccessKeyName']
         self.sas_key_value = parts['SharedAccessKey']
@@ -62,7 +62,7 @@ class NotificationService:
 
     @staticmethod
     def get_expiry():
-        # Token geçerlilik süresi 5 dakika olarak ayarlandı (300 saniye).
+        # Token validity period set to 5 minutes (300 seconds)
         return int(round(time.time() + 3000))
 
     @staticmethod

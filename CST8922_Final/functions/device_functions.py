@@ -8,10 +8,11 @@ from azure_services.IothubService import IoTHubService
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     """
-    POST  -> register_device (cihaz kaydı)
-    GET   -> get_devices
+    Main function that routes HTTP requests to the appropriate device handler.
+    POST    -> register_device
+    GET     -> get_devices
     PUT/PATCH -> update_device
-    DELETE -> delete_device
+    DELETE  -> delete_device
     """
     method = req.method.upper()
     if method == "POST":
@@ -21,11 +22,11 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     elif method in ["PUT", "PATCH"]:
         return update_device(req)
     elif method == "DELETE":
-        return delete_device_request (req)
+        return delete_device_request(req)
     else:
         return func.HttpResponse(
-            json.dumps({"message": "Method not allowed"}), 
-            status_code=405, 
+            json.dumps({"message": "Method not allowed"}),
+            status_code=405,
             mimetype="application/json"
         )
 

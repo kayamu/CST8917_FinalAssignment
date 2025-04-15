@@ -1,11 +1,24 @@
 import os
-import datetime
 import logging
+import datetime
 from azure.storage.blob import BlobServiceClient
 from config.azure_config import get_azure_config
 from azure_services.CosmosdbService import CosmosDBService
 
 def scheduled_cleanup(timer_info):
+    """
+    Scheduled function that performs cleanup of old blob storage images
+    and updates the database accordingly.
+    
+    This function:
+    1. Connects to the blob storage container
+    2. Retrieves all users from the database
+    3. For each user, checks their uploadedImages collection
+    4. Deletes images older than 1 day from both storage and database
+    
+    Args:
+        timer_info: Information about the timer trigger
+    """
     try:
         # Load configuration
         config = get_azure_config()
@@ -25,6 +38,7 @@ def scheduled_cleanup(timer_info):
 
         # Query all users from the CosmosDB collection
         users = cosmos_service.find_documents({})
+        logging.info(f"Found {len(users)} users to process during cleanup")
 
         for user in users:
             updated_images = []
@@ -33,26 +47,37 @@ def scheduled_cleanup(timer_info):
                 age = now - upload_date
 
                 # Check if image is older than 1 day
-                if age.total_seconds() > 86400:
+                if age.total_seconds() > 86400:  # 24 hours in seconds
                     # Delete original and resized images from blob storage
                     try:
                         blob_name_original = f"{user['_id']}/{image['imageName']}"
                         container_client.delete_blob(blob_name_original)
-                        logging.info(f"Deleted blobs: {blob_name_original}")
+                        logging.info(f"Deleted blob: {blob_name_original}")
                     except Exception as e:
-                        logging.error(f"Failed to delete blob(s): {str(e)}")
+                        logging.error(f"Failed to delete blob: {str(e)}")
                 else:
+                    # Keep images that are still fresh
                     updated_images.append(image)
 
             # Update user document with only fresh images
-            cosmos_service.update_document(
-                {"_id": user["_id"]},
-                {"$set": {"uploadedImages": updated_images}}
-            )
-
+            if len(user.get("uploadedImages", [])) != len(updated_images):
+                logging.info(f"Updating user {user.get('_id')} with {len(updated_images)} remaining images")
+                cosmos_service.update_document(
+                    {"_id": user["_id"]},
+                    {"$set": {"uploadedImages": updated_images}}
+                )
+            
+        logging.info("Scheduled cleanup completed successfully")
     except Exception as e:
-        logging.error(f"[Cleanup Error] {str(e)}")
+        handle_error(e, {"source": "scheduled_cleanup"})
 
 def handle_error(error: Exception, context: dict = None):
+    """
+    Centralized error handler for scheduled tasks.
+    
+    Args:
+        error: The exception that occurred
+        context: Additional context information, such as the source function
+    """
     source = context.get("source", "Unknown")
     logging.exception(f"Error in {source}: {str(error)}")

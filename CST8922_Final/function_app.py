@@ -9,8 +9,6 @@ from functions import admin_functions
 from listeners.blobstorage_listener import BlobListener
 import asyncio
 
-
-
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -92,7 +90,7 @@ def AlertLogsManagement(req: func.HttpRequest) -> func.HttpResponse:
 @app.schedule(schedule="0 0 0 * * *", arg_name="mytimer", run_on_startup=False, use_monitor=True)
 def ScheduledCleanup(mytimer: func.TimerRequest):
     """
-    This function is triggered every hour (cron schedule: "0 0 * * * *").
+    This function is triggered daily at midnight (cron schedule: "0 0 0 * * *").
     It performs cleanup of old images from blob storage and updates MongoDB.
     """
     logging.info("Scheduled cleanup function triggered.")
@@ -101,18 +99,19 @@ def ScheduledCleanup(mytimer: func.TimerRequest):
 @app.function_name(name="ServiceBusListenerFunction")
 @app.service_bus_queue_trigger(
     arg_name="msg",
-    queue_name="cst8922servicebusqueue",  # Kuyruk adı azure_config.py'den alınır
-    connection="SERVICE_BUS_CONNECTION_STRING"  # Bağlantı dizesi azure_config.py'den alınır
+    queue_name="cst8922servicebusqueue",  # Queue name from azure_config.py
+    connection="SERVICE_BUS_CONNECTION_STRING"  # Connection string from azure_config.py
 )
 def ServiceBusListenerFunction(msg: str):
     """
     Azure Function triggered by a Service Bus Queue message.
+    Processes incoming telemetry data messages.
     """
     logging.info("Service Bus Listener Function triggered.")
     try:
         # Decode the message body
         message_body = msg  # msg is already a string
-        logging.info(f"Message received: {message_body}")
+        logging.info(f"Message received")
 
         # Pass the message to the ServiceBusListener for processing
         listener = ServiceBusListener()
@@ -124,26 +123,41 @@ def ServiceBusListenerFunction(msg: str):
 @app.function_name(name="GetUsers")
 @app.route(route="manage/users", methods=["GET"])
 def GetUsers(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Admin endpoint to retrieve user information.
+    """
     return admin_functions.get_users(req)
 
 @app.function_name(name="ChangeUserType")
 @app.route(route="manage/change-user-type", methods=["PUT"])
 def ChangeUserType(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Admin endpoint to change a user's type (e.g., to admin).
+    """
     return admin_functions.change_user_type(req)
 
 @app.function_name(name="CreateAdminUser")
 @app.route(route="manage/create-admin", methods=["POST"])
 def CreateAdminUser(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Endpoint to create an admin user account.
+    """
     return admin_functions.create_admin_user(req)
 
 @app.function_name(name="ListProcessedImages")
 @app.route(route="manage/processed-images", methods=["GET"])
 def ListProcessedImages(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Admin endpoint to list processed images from blob storage.
+    """
     return admin_functions.list_processed_images(req)
 
 @app.function_name(name="TransferDevice")
 @app.route(route="manage/transfer-device", methods=["POST"])
 def TransferDevice(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Admin endpoint to transfer a device from one user to another.
+    """
     return admin_functions.transfer_device(req)
 
 @app.function_name(name="BlobTriggerListener")
@@ -154,7 +168,8 @@ def TransferDevice(req: func.HttpRequest) -> func.HttpResponse:
 )
 async def BlobTriggerListener(myblob: func.InputStream):
     """
-    Azure Function triggered by a new blob in the specified container.
+    Azure Function triggered by a new blob upload in the telemetry-images container.
+    Processes uploaded images for content analysis and alerting.
     """
     blob_name = myblob.name.split('/')[-1]  # Extract the filename
     logger.info(f"Blob Trigger Function triggered for blob: {blob_name}")

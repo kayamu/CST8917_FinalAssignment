@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class BlobListener:
     """
-    Class to handle blob storage events and processing.
+    Handles blob storage events and processing.
     """
     
     def __init__(self):
@@ -125,9 +125,6 @@ class BlobListener:
                     await self.handle_notification(analysis_result, blob_path, response["user"], response["device_id"], response["event_id"])
                 else:
                     logger.warning(f"No valid user found for {blob_name}, skipping notification and move operation")
-
-
-
 
             
             total_duration = time.time() - start_time

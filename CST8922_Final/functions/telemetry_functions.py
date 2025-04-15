@@ -10,14 +10,15 @@ from azure_services.NotificationService import NotificationService
 from azure_services.CommunicationService import CommunicationService
 from config.jwt_utils import authenticate_user, get_azure_config
 
-import base64  # Base64 encoding için gerekli
+import base64  # Required for Base64 encoding
+
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     """
-    Bu ana fonksiyon gelen HTTP request methoduna göre ilgili telemetry fonksiyonunu çağırır.
-    POST  -> post_telemetry (authorization gerektirmez)
-    GET   -> get_telemetry (authorization gerektirir)
-    DELETE -> delete_telemetry (authorization gerektirir)
+    Main function that routes HTTP requests to the appropriate telemetry handler.
+    POST    -> post_telemetry (no authorization required)
+    GET     -> get_telemetry (authorization required)
+    DELETE  -> delete_telemetry (authorization required)
     """
     method = req.method.upper()
     if method == "POST":
@@ -377,64 +378,61 @@ def get_telemetry(req: func.HttpRequest) -> func.HttpResponse:
     )
 
 def delete_telemetry(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("Processing delete_telemetry request.")
-    
-    # Kullanıcı kimliğini doğrula
+    # Authenticate user
     user_id = authenticate_user(req)
-    if isinstance(user_id, func.HttpResponse):  # Eğer doğrulama başarısızsa, hata yanıtını döndür
+    if isinstance(user_id, func.HttpResponse):  # If authentication fails, return the error response
         return user_id
-    
-    # İstek gövdesini al
+
+    # Parse request body
     try:
         req_body = req.get_json()
     except ValueError:
         return func.HttpResponse("Invalid JSON body", status_code=400)
-    
-    # Gerekli alanları kontrol et
+
+    # Check required fields
     event_id = req_body.get("eventId")
     if not event_id:
         return func.HttpResponse(
-            json.dumps({"message": "Missing required fields"}), 
-            status_code=400, 
+            json.dumps({"message": "Missing required fields"}),
+            status_code=400,
             mimetype="application/json"
         )
-    
-    # Kullanıcının cihazlarını al
+
+    # Retrieve user's devices
     cosmos_service = CosmosDBService()
     user = cosmos_service.find_document({"_id": user_id})
     if not user:
         return func.HttpResponse("User not found in CosmosDB", status_code=404)
-    
+
     user_devices = user.get("Devices", [])
     if not user_devices:
         return func.HttpResponse("No devices found for the user", status_code=404)
-    
-    # Kullanıcının cihazlarındaki telemetri verilerini tarayarak eventId'yi bul ve sil
+
+    # Search for the eventId in user's device telemetry and delete it
     for device in user_devices:
         telemetry_data = device.get("telemetryData", [])
         for telemetry in telemetry_data:
             if telemetry.get("eventId") == event_id:
-                # Telemetri verisini sil
                 result = cosmos_service.update_document(
                     {"_id": user["_id"], "Devices.deviceId": device["deviceId"]},
                     {"$pull": {"Devices.$.telemetryData": {"eventId": event_id}}}
                 )
                 if result.modified_count > 0:
                     return func.HttpResponse(
-                        json.dumps({"message": "Telemetry data deleted successfully"}), 
-                        status_code=200, 
+                        json.dumps({"message": "Telemetry data deleted successfully"}),
+                        status_code=200,
                         mimetype="application/json"
                     )
                 else:
                     return func.HttpResponse(
-                        json.dumps({"message": "Failed to delete telemetry data"}), 
-                        status_code=400, 
+                        json.dumps({"message": "Failed to delete telemetry data"}),
+                        status_code=400,
                         mimetype="application/json"
                     )
-    
+
     return func.HttpResponse(
-        json.dumps({"message": "Telemetry data not found"}), 
-        status_code=404, 
+        json.dumps({"message": "Telemetry data not found"}),
+        status_code=404,
         mimetype="application/json"
     )
 

@@ -1,25 +1,25 @@
 import logging
 import azure.functions as func
-from azure.servicebus import ServiceBusMessage
 import json
-import os  # For file extension extraction
+import os
 from azure_services.CosmosdbService import CosmosDBService
 from azure_services.BlobstorageService import BlobStorageService
 from azure_services.IothubService import IoTHubService
 from config.azure_config import get_azure_config
 from azure_services.NotificationService import NotificationService
 from azure_services.CommunicationService import CommunicationService
-from datetime import datetime, timezone  # Import timezone explicitly
+from datetime import datetime, timezone
 
 class ServiceBusListener:
     def main(self, msg: str):
         """
         Azure Function triggered by a Service Bus Queue message.
+        Processes telemetry data sent through the queue.
         """
         try:
             # msg is already a string, no need to call get_body()
             message_body = msg
-            logging.info(f"Service Bus Queue message received: {message_body}")
+            logging.info(f"Service Bus Queue message received")
             
             # Process the telemetry message
             self.process_telemetry_message(message_body)
@@ -29,11 +29,8 @@ class ServiceBusListener:
     def process_telemetry_message(self, message_body: str):
         """
         Process a telemetry message from the Service Bus Queue and write it to the database.
+        Also checks for condition violations and triggers notifications if needed.
         """
-        logging.info(f"************************************************")
-        logging.info(f"Process telemetry message: {message_body}")
-        logging.info(f"************************************************")
-
         try:
             telemetry_data = json.loads(message_body)
             device_id = telemetry_data.get("deviceId")
@@ -42,15 +39,12 @@ class ServiceBusListener:
                 return
 
             cosmos_service = CosmosDBService()
-            logging.info(f"Searching for user with deviceId={device_id} in CosmosDB.")
 
             # Find the user associated with the deviceId
             user = cosmos_service.find_document({"Devices.deviceId": device_id})
             if not user:
                 logging.error(f"Device with deviceId={device_id} not found in any user's Devices list.")
                 return
-
-            logging.info(f"Device found in user: {user['email']}")
 
             # Find the specific device in the user's Devices list
             device = next((d for d in user["Devices"] if d["deviceId"] == device_id), None)
@@ -63,7 +57,6 @@ class ServiceBusListener:
                 self.check_conditions(device_id, telemetry_data["values"])
             except Exception as e:
                 logging.exception("Failed to check conditions for telemetry values.")
-                return
 
             # Update the telemetryData array for the device
             result = cosmos_service.update_document(
@@ -74,7 +67,7 @@ class ServiceBusListener:
                 logging.error(f"Failed to update telemetry data for deviceId={device_id}.")
                 return
 
-            # Send telemetry data to IoT Hub
+            # Forward telemetry data to IoT Hub Event Grid
             try:
                 iot_service = IoTHubService()
                 iot_service.send_telemetry_to_event_hub(device_id, telemetry_data)
@@ -88,18 +81,17 @@ class ServiceBusListener:
 
     def check_conditions(self, device_id: str, values: list):
         """
-        Check conditions for telemetry values and log warnings if thresholds are exceeded.
+        Check conditions for telemetry values and trigger alerts if thresholds are exceeded.
+        
+        Args:
+            device_id: The device ID that sent the telemetry
+            values: List of telemetry values to check against conditions
         """
-        logging.info(f"Starting condition check for deviceId={device_id}.")
         cosmos_service = CosmosDBService()
         config = get_azure_config()
-        collection_name = config["CONDITION_COLLECTION_NAME"]  # Read the Conditions collection name
-
-        logging.debug(f"Using collection: {collection_name}")
-
+        collection_name = config["CONDITION_COLLECTION_NAME"]
 
         for value in values:
-            logging.debug(f"Processing value: {value}")
             value_type = value.get("valueType")
             value_data = value.get("value")
 
@@ -114,24 +106,19 @@ class ServiceBusListener:
                 logging.warning(f"Value {value_data} is not a valid integer. Skipping.")
                 continue
 
-            logging.info(f"Checking conditions for valueType={value_type}, value={value_data}.")
-
             try:
                 # Query conditions for the given valueType
                 conditions = cosmos_service.find_documents(
                     {"valueType": value_type}, collection_name
                 )
-                logging.debug(f"Found {len(conditions)} conditions for valueType={value_type}.")
             except Exception as e:
                 logging.error(f"Error while querying conditions for valueType={value_type}: {str(e)}")
                 continue
 
             if not conditions:
-                logging.info(f"No conditions found for valueType={value_type}.")
                 continue
 
             for condition in conditions:
-                logging.info(f"Evaluating condition: {condition}")
                 scope = condition.get("scope", "general")
                 condition_user_id = condition.get("userId")
                 condition_device_id = condition.get("deviceId")
@@ -140,13 +127,11 @@ class ServiceBusListener:
                 # Apply scope logic
                 if scope == "user":
                     if not user or user.get("userId") != condition_user_id:
-                        logging.debug(f"Condition skipped: Scope is 'user' but userId does not match.")
                         continue
 
                 elif scope == "device":
                     # Ensure the condition's deviceId matches the telemetry data's deviceId
                     if condition_device_id != device_id:
-                        logging.debug(f"Condition skipped: Scope is 'device' but deviceId does not match.")
                         continue
 
                 # Compare the value with the condition's min and max values
@@ -163,18 +148,23 @@ class ServiceBusListener:
                     logging.warning(message)
                     self.notify_user(condition, message, user, device_id, values)
 
-        logging.info(f"Condition check completed for deviceId={device_id}.")
-
     def notify_user(self, condition: dict, message: str, user: dict = None, device_id: str = None, values: list = None):
         """
-        Notify the user based on the specified methods.
+        Notify the user based on the specified notification methods in the condition.
+        
+        Args:
+            condition: The condition that triggered the notification
+            message: The notification message to send
+            user: The user to notify
+            device_id: The device ID related to the notification
+            values: The telemetry values that triggered the notification
         """
         methods = condition.get("notificationMethods", ["Log"])
         notification_service = NotificationService()
         communication_service = CommunicationService()
         cosmos_service = CosmosDBService()
         config = get_azure_config()
-        alert_collection_name = config["ALERT_COLLECTION_NAME"]  # Get the alert collection name from config
+        alert_collection_name = config["ALERT_COLLECTION_NAME"]
 
         for method in methods:
             if method == "Notification":
@@ -183,7 +173,7 @@ class ServiceBusListener:
 
             elif method == "Email":
                 if user and "email" in user:
-                    logging.info(f"Sending email to {user['email']}: {message}")
+                    logging.info(f"Sending email to {user['email']}")
                     communication_service.send_email(
                         recipient_email=user["email"],
                         subject="Alert Notification",
@@ -194,31 +184,27 @@ class ServiceBusListener:
 
             elif method == "SMS":
                 if user and "phoneNumber" in user:
-                    logging.info(f"Sending SMS to {user['phoneNumber']}: {message}")
+                    logging.info(f"Sending SMS to {user['phoneNumber']}")
                 else:
                     logging.error("User phone number not found. Cannot send SMS notification.")
 
-
             elif method == "Log":
-                logging.info(f"Logging alert to collection: {alert_collection_name}")
                 try:
                     # Create the alert document
-
-
                     alert_document = {
                         "deviceId": device_id,
                         "message": message,
                         "condition": condition,
                         "user_id": user.get("userId") if user else None,
                         "telemetry_data": values,
-                        "timestamp": datetime.now(timezone.utc).isoformat()  # Use timezone.utc
+                        "timestamp": datetime.now(timezone.utc).isoformat()
                     }
 
                     # Insert the alert into the specified collection
                     cosmos_service.insert_document(alert_document, alert_collection_name)
-                    logging.info(f"Alert successfully logged to collection: {alert_collection_name}")
+                    logging.info(f"Alert successfully logged to collection")
                 except Exception as e:
-                    logging.error(f"Failed to log alert to collection: {alert_collection_name}. Error: {str(e)}")
+                    logging.error(f"Failed to log alert to collection: {str(e)}")
 
             else:
                 logging.error(f"Unknown notification method: {method}")

@@ -1,6 +1,6 @@
 import logging
 import json
-import os  # Dosya uzantısını almak için gerekli
+import os  # Required for file extension operations
 from azure.servicebus import ServiceBusClient, ServiceBusMessage
 from config.azure_config import get_azure_config
 from azure_services.CosmosdbService import CosmosDBService
@@ -26,7 +26,7 @@ class ServiceBusService:
             # Process the telemetry message
             self.process_telemetry_message(ServiceBusMessage(message_body))
         except Exception as e:
-            logging.exception(f"Failed to process Service Bus Queue message: {str(e)}")        
+            logging.exception(f"Failed to process Service Bus Queue message: {str(e)}")
     
     def send_message(self, queue_name: str, message_body: str):
         """
@@ -61,4 +61,3 @@ class ServiceBusService:
             raise
 
 
- 
