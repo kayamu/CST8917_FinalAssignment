@@ -1,9 +1,6 @@
 import logging
-import azure.functions as func
 import json
-import os
 from azure_services.CosmosdbService import CosmosDBService
-from azure_services.BlobstorageService import BlobStorageService
 from azure_services.IothubService import IoTHubService
 from config.azure_config import get_azure_config
 from azure_services.NotificationService import NotificationService

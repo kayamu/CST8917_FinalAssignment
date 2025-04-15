@@ -7,7 +7,6 @@ from scheduled.trigger_functions import scheduled_cleanup
 from listeners.servicebus_listener import ServiceBusListener
 from functions import admin_functions
 from listeners.blobstorage_listener import BlobListener
-import asyncio
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

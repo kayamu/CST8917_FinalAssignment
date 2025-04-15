@@ -1,4 +1,3 @@
-import os
 import logging
 import datetime
 from azure.storage.blob import BlobServiceClient

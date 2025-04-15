@@ -4,10 +4,8 @@ import json
 import logging
 import azure.functions as func
 from azure_services.CosmosdbService import CosmosDBService
-from azure_services.IothubService import IoTHubService
 from azure_services.BlobstorageService import BlobStorageService
-from azure_services.NotificationService import NotificationService
-from azure_services.CommunicationService import CommunicationService
+
 from config.jwt_utils import authenticate_user, get_azure_config
 
 import base64  # Required for Base64 encoding

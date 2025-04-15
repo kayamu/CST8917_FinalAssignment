@@ -3,7 +3,7 @@ import logging
 import azure.functions as func
 from config.jwt_utils import decode_token, authenticate_user
 from azure_services.CosmosdbService import CosmosDBService
-from functions.user_functions import create_user, update_user_put
+from functions.user_functions import create_user
 from config.azure_config import get_azure_config
 from azure.storage.blob import BlobServiceClient
 

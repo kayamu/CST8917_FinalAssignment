@@ -1,6 +1,4 @@
 import logging
-import json
-import os  # Required for file extension operations
 from azure.servicebus import ServiceBusClient, ServiceBusMessage
 from config.azure_config import get_azure_config
 from azure_services.CosmosdbService import CosmosDBService
