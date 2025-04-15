@@ -116,7 +116,6 @@ def post_telemetry(req: func.HttpRequest) -> func.HttpResponse:
         )
 
 def process_single_telemetry(device_id, values, event_date, image=None):
-    """Process a single telemetry item with possible image attachment"""
     # Check if values contains complete telemetry items with deviceId
     if isinstance(values, list) and all(isinstance(item, dict) and "deviceId" in item for item in values):
         # This is actually multiple telemetry items, redirect to the appropriate handler
@@ -288,19 +287,6 @@ def process_multiple_telemetry(items_to_process):
     )
 
 def process_image(image, device_id, event_id, telemetry_data):
-    """
-    Processes the uploaded image: uploads it to Blob Storage, generates a SAS token,
-    analyzes it for fire detection, and updates the telemetry data with the results.
-
-    Args:
-        image: The uploaded image file.
-        device_id: The ID of the device that uploaded the image.
-        user_id: The ID of the user associated with the device.
-        telemetry_data: The telemetry data dictionary to update.
-
-    Returns:
-        A tuple containing the image URL with SAS token and the fire detection result.
-    """
     try:
         # Upload the image to Blob Storage
         blob_service = BlobStorageService()

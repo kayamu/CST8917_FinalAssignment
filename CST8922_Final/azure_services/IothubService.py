@@ -7,17 +7,11 @@ from typing import Union
 
 class IoTHubService:
     def __init__(self):
-        """
-        Initializes the IoTHubService instance with a registry manager.
-        """
         config = get_azure_config()
         connection_string = config["IOTHUB_CONNECTION_STRING"]
         self.registry_manager = IoTHubRegistryManager(connection_string)
 
     def register_device_in_iot_hub(self, device_data: dict):
-        """
-        Registers a device in IoT Hub.
-        """
         try:
             device_id = device_data.get("deviceId")
             if not device_id:
@@ -47,12 +41,6 @@ class IoTHubService:
             raise e
 
     def delete_device_from_iot_hub(self, device_id: Union[str, list]):
-        """
-        Deletes a device or multiple devices from IoT Hub.
-        
-        Parameters:
-        - device_id: can be a single device ID string or a list of device IDs
-        """
         try:
             if not device_id:
                 raise ValueError("Device ID or list of device IDs is required for IoT Hub deletion.")
@@ -87,9 +75,6 @@ class IoTHubService:
             raise e
 
     def send_telemetry_to_event_hub(self, device_id: str, telemetry_data: dict):
-        """
-        Sends telemetry data to Azure Event Grid.
-        """
         try:
             # Add device_id to telemetry data
             telemetry_data["device_id"] = device_id

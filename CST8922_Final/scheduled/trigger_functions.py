@@ -6,19 +6,6 @@ from config.azure_config import get_azure_config
 from azure_services.CosmosdbService import CosmosDBService
 
 def scheduled_cleanup(timer_info):
-    """
-    Scheduled function that performs cleanup of old blob storage images
-    and updates the database accordingly.
-    
-    This function:
-    1. Connects to the blob storage container
-    2. Retrieves all users from the database
-    3. For each user, checks their uploadedImages collection
-    4. Deletes images older than 1 day from both storage and database
-    
-    Args:
-        timer_info: Information about the timer trigger
-    """
     try:
         # Load configuration
         config = get_azure_config()
@@ -72,12 +59,5 @@ def scheduled_cleanup(timer_info):
         handle_error(e, {"source": "scheduled_cleanup"})
 
 def handle_error(error: Exception, context: dict = None):
-    """
-    Centralized error handler for scheduled tasks.
-    
-    Args:
-        error: The exception that occurred
-        context: Additional context information, such as the source function
-    """
     source = context.get("source", "Unknown")
     logging.exception(f"Error in {source}: {str(error)}")

@@ -8,18 +8,6 @@ from azure_services.CosmosdbService import CosmosDBService
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
-    """
-    Main function for user-related requests.
-    Dispatches based on HTTP method:
-      POST   -> create_user (no authorization required)
-      GET    -> get_user (authorization required)
-      PUT    -> update_user_put (authorization required)
-      PATCH  -> update_password (no authorization required)
-      DELETE -> delete_user (authorization required)
-      LOGIN  -> login_user (no authorization required)
-      ADMIN  -> create_admin_user (no authorization required)
-      USERS  -> get_users (authorization required, admin only)
-    """
     method = req.method.upper()
     if method == "LOGIN":
         return login_user(req)
@@ -135,9 +123,6 @@ def create_user(req: func.HttpRequest, user_type: str = "user") -> func.HttpResp
 
 
 def get_user_info(user_id: str):
-    """
-    Helper function to retrieve user information from CosmosDB.
-    """
     cosmos_service = CosmosDBService()
     user = cosmos_service.find_document({"_id": user_id})
     if not user:
@@ -414,8 +399,6 @@ def login_user(req: func.HttpRequest) -> func.HttpResponse:
         {"_id": user_id},
         {"$set": {"authToken": new_token}}  # Added $set operator
     )
-    #if update_result.modified_count == 0:
-    #    return func.HttpResponse("Failed to update user token", status_code=500)
     
     # Return the new token as a response
     response_body = {"message": "Login successful", "token": new_token}

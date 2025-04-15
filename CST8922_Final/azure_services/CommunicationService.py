@@ -11,9 +11,6 @@ class CommunicationService:
         self.email_client = EmailClient.from_connection_string(self.connection_string)
 
     def send_email(self, recipient_email: str, subject: str, body: str, html_body: str = None):
-        """
-        Sends an email using Azure Communication Services with optional HTML content.
-        """
         try:
             # Validate recipient email
             if not recipient_email or "@" not in recipient_email:

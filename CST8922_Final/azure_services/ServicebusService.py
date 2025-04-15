@@ -15,9 +15,6 @@ class ServiceBusService:
         self.service_bus_client = ServiceBusClient.from_connection_string(self.connection_string)
 
     def main(self, msg: ServiceBusMessage):
-        """
-        Azure Function triggered by a Service Bus Queue message.
-        """
         try:
             # Get the message body
             message_body = msg.get_body().decode('utf-8')
@@ -29,9 +26,6 @@ class ServiceBusService:
             logging.exception(f"Failed to process Service Bus Queue message: {str(e)}")
     
     def send_message(self, queue_name: str, message_body: str):
-        """
-        Send a message to the specified Service Bus Queue.
-        """
         try:
             with self.service_bus_client:
                 sender = self.service_bus_client.get_queue_sender(queue_name=queue_name)
@@ -44,9 +38,6 @@ class ServiceBusService:
             raise
 
     def receive_messages(self, queue_name: str, max_message_count: int = 1):
-        """
-        Receive messages from the specified Service Bus Queue.
-        """
         try:
             with self.service_bus_client:
                 receiver = self.service_bus_client.get_queue_receiver(queue_name=queue_name)

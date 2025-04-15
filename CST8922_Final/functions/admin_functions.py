@@ -9,11 +9,6 @@ from azure.storage.blob import BlobServiceClient
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
-    """
-    Main method to route admin-related requests to the appropriate function.
-    """
-    logging.info("Processing admin main request.")
-    
     # Extract the method type from the query parameters or request body
     method = req.params.get("method")
     if not method:
@@ -165,18 +160,6 @@ def create_admin_user(req: func.HttpRequest) -> func.HttpResponse:
     return create_user(req, user_type="admin")
 
 def list_processed_images(req: func.HttpRequest) -> func.HttpResponse:
-    """
-    Lists all files and directories in the processed-images blob container.
-    Can also find a specific image and return its URL with SAS token.
-    
-    Query parameters:
-    - prefix: Optional path prefix for listing files in a specific directory
-    - imageName: Image filename to search for
-    - imageUrl: Optional URL path to narrow the search or direct image URL
-    - deviceId: Optional device ID to narrow the search
-    
-    Requires admin authentication.
-    """
     logging.info("Processing list_processed_images request.")
     
     # Authenticate user and verify admin permissions

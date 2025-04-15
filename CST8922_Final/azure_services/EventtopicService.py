@@ -11,9 +11,6 @@ eventgrid_client = EventGridPublisherClient(
 )
 
 def forward_event(event_data: dict):
-    """
-    Forwards the given event data to Azure Event Grid.
-    """
     try:
         logging.info(f"[forward_event] Preparing to forward event for device_id: {event_data.get('device_id')}")
         event = EventGridEvent(

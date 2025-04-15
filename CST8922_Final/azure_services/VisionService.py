@@ -8,10 +8,8 @@ from config.azure_config import get_azure_config
 logger = logging.getLogger(__name__)
 
 class CognitiveServices:
-    """Class for Azure Cognitive Services operations"""
     
     def __init__(self):
-        """Initialize the CognitiveServices class with Azure configuration"""
         # Get Azure Cognitive Service configuration
         config = get_azure_config()
         self.endpoint = config["COGNITIVE_SERVICE_ENDPOINT"]
@@ -25,15 +23,6 @@ class CognitiveServices:
         logger.info("CognitiveServices client initialized")
 
     async def detect_image_content(self, analysis_result):
-        """
-        Detects the content type in an image based on analysis results.
-        
-        Args:
-            analysis_result: The result from the cognitive service analysis
-            
-        Returns:
-            dict: A dictionary containing the detected content type and confidence score
-        """
         logger.info("Detecting image content from analysis results")
         
         # Default result
@@ -100,15 +89,6 @@ class CognitiveServices:
         return detection_result
 
     async def analyze_image(self, image_url: str) -> dict:
-        """
-        Asynchronously analyze an image to detect various content types.
-        
-        Args:
-            image_url: URL of the image to analyze
-            
-        Returns:
-            dict: Analysis result with content type, confidence and description
-        """
         try:
             # Run the synchronous API call in a thread pool
             analysis = await asyncio.to_thread(
