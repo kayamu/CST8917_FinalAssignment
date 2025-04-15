@@ -1,7 +1,8 @@
 import os
 import logging
 import azure.functions as func
-from functions import user_functions, device_functions, telemetry_functions, conditions, alertlogs
+from functions import condition_functions
+from functions import user_functions, device_functions, telemetry_functions, alertlogs
 from scheduled.trigger_functions import scheduled_cleanup
 from listeners.servicebus_listener import ServiceBusListener
 from functions import admin_functions
@@ -77,7 +78,7 @@ def TelemetryManagement(req: func.HttpRequest) -> func.HttpResponse:
 @app.function_name(name="ConditionsFunctions")
 @app.route(route="conditions", methods=["POST", "GET", "PUT", "DELETE"])
 def ConditionsManagement(req: func.HttpRequest) -> func.HttpResponse:
-    return conditions.main(req)
+    return condition_functions.main(req)
 
 @app.function_name(name="AlertLogsFunctions")
 @app.route(route="alertlogs", methods=["GET", "DELETE"])
